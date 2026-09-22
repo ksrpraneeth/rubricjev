@@ -508,14 +508,23 @@ let state = null, pollTimer = null, timeOffset = 0, screenKey = "", roundKey = -
 const serverNow = () => Date.now() + timeOffset;
 // Live updates: one streamed response per player; the server pushes state the moment anything changes.
 // Falls back to polling when a network or proxy will not stream.
-let streaming = false, seenEv = new Set(), eventsPrimed = false;
-const refresh = () => (streaming ? null : poll());
+let streaming = false, seenEv = new Set(), eventsPrimed = false, lastByteAt = 0, lastPollAt = 0;
+// After your own action, confirm once even when streaming, so a stalled stream never hides your result.
+const refresh = () => poll();
 function startRoom() {
   stopCurrent();
   state = null; screenKey = ""; roundKey = -1; raceShow = null; boostArmed = false; seenEv = new Set(); eventsPrimed = false; streaming = false;
   let alive = true;
   const ctrl = new AbortController();
-  stopCurrent = () => { alive = false; streaming = false; clearTimeout(pollTimer); ctrl.abort(); };
+  let conn = null;
+  // Health check: poll while the stream is down, and drop a stream that has gone silent (server heartbeats every 5s).
+  const health = setInterval(() => {
+    if (!alive) return;
+    const now = Date.now();
+    if (!streaming && now - lastPollAt > 1500) poll();
+    if (streaming && now - lastByteAt > 9000) { streaming = false; conn?.abort(); poll(); }
+  }, 1000);
+  stopCurrent = () => { alive = false; streaming = false; clearTimeout(pollTimer); clearInterval(health); ctrl.abort(); };
   const pollLoop = async () => {
     if (!alive || streaming) return;
     await poll();
@@ -528,12 +537,16 @@ function startRoom() {
     while (alive) {
       let firstTimer = null;
       try {
-        const res = await fetch("/api/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...session, level: myLevel() }), signal: ctrl.signal });
+        conn = new AbortController();
+        const onStop = () => conn.abort(); ctrl.signal.addEventListener("abort", onStop, { once: true });
+        const res = await fetch("/api/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...session, level: myLevel() }), signal: conn.signal });
         if (!res.ok || !res.body) throw new Error("stream " + res.status);
         const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
+        lastByteAt = Date.now();
         firstTimer = setTimeout(() => { if (!got) reader.cancel().catch(() => {}); }, 7000);
         while (alive) {
           const { value, done } = await reader.read(); if (done) break;
+          lastByteAt = Date.now();
           buf += dec.decode(value, { stream: true });
           let i;
           while ((i = buf.indexOf("\n\n")) >= 0) {
@@ -541,7 +554,7 @@ function startRoom() {
             if (onStreamChunk(chunk)) { got = true; fails = 0; if (!streaming) { streaming = true; clearTimeout(pollTimer); } }
           }
         }
-      } catch (e) { if (!alive || e.name === "AbortError") return; }
+      } catch (e) { if (!alive) return; }
       finally { clearTimeout(firstTimer); }
       streaming = false;
       if (!alive) return;
@@ -558,7 +571,7 @@ function onStreamChunk(chunk) {
   for (const line of chunk.split("\n")) { if (line.startsWith("event:")) event = line.slice(6).trim(); else if (line.startsWith("data:")) data += line.slice(5).trim(); }
   if (!data) return false;
   let d; try { d = JSON.parse(data); } catch { return false; }
-  if (event === "message") { timeOffset = d.serverTime - Date.now(); handleEvents(d); state = d; render(); return true; }
+  if (event === "message") { if (!session || d.code !== session.code) return false; timeOffset = d.serverTime - Date.now(); handleEvents(d); state = d; render(); return true; }
   if (event === "typing") { applyTyping(d); return true; }
   if (event === "ev") { applyEvent(d); return true; }
   if (event === "gone") { if (d.status === 403 || d.status === 404) { toast(d.error, "bad"); saveSession(null); navigate("/", true); } return true; }
@@ -574,9 +587,11 @@ function applyTyping(d) {
 function applyEvent(ev) { if (!ev || !state || seenEv.has(ev.id)) return; seenEv.add(ev.id); showEvent(ev); }
 async function poll() {
   if (!session || pollBusy) return;
-  pollBusy = true;
+  pollBusy = true; lastPollAt = Date.now();
   try {
+    const asked = session;
     const s = await api("state", { ...session, level: myLevel() });
+    if (session !== asked || !session) return;
     timeOffset = s.serverTime - Date.now();
     handleEvents(s); state = s; render();
   } catch (e) {
@@ -917,12 +932,12 @@ function renderRace() {
       });
       if (g.points) { Sound.coin(); popAt($(".banner"), `+${g.points}`); } else Sound.thud();
       $("#nextq").onclick = () => { raceShow = null; roundKey = -1; render(); };
-    } else { $("#lanes") && ($("#lanes").outerHTML = lanes); }
+    } else { const l = $("#lanes"); if (l) l.outerHTML = lanes; }
     return;
   }
   if (s.finishedMine) {
     if (roundKey !== "done") { roundKey = "done"; shell({ hud: hudGame({ mid: esc(s.topic) }), stage: `<div class="banner">${I.star}<div class="grow"><p class="t">You reached the top</p><p class="small muted">Waiting for the others to finish.</p></div></div>${lanes}<div class="card fill"><div class="list" id="lb">${standingsRows(s.players, false)}</div></div>`, dock: `<button class="btn ghost sm" id="reactbtn">${I.smile}</button><p class="note">Final results appear when everyone is done.</p>` }); $("#reactbtn").onclick = () => openTray((x) => api("react", { ...session, text: x }).catch(() => {})); }
-    else { $("#lanes").outerHTML = lanes; flip($("#lb"), () => ($("#lb").innerHTML = standingsRows(s.players, false))); }
+    else { const l = $("#lanes"); if (l) l.outerHTML = lanes; const lb = $("#lb"); if (lb) flip(lb, () => (lb.innerHTML = standingsRows(s.players, false))); }
     return;
   }
   const q = s.question;
@@ -948,7 +963,7 @@ function renderRace() {
     $("#lockbtn").onclick = submit;
     setTimeout(() => $("#ans")?.focus(), 250);
   } else {
-    $("#lanes").outerHTML = lanes;
+    const l = $("#lanes"); if (l) l.outerHTML = lanes;
     if ($("#lb")) flip($("#lb"), () => ($("#lb").innerHTML = standingsRows(s.players, false)));
   }
 }
