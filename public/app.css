@@ -153,7 +153,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2.5
 .pcell .st { height: 14px; font-size: 11px; font-weight: 800; color: var(--dim); white-space: nowrap; }
 .pcell .st.typing { color: var(--cyan); } .pcell .st.done { color: var(--green); } .pcell .st.host { color: var(--gold); }
 .pcell.empty .disc { background: transparent; box-shadow: inset 0 0 0 2px rgba(255,255,255,.14); color: var(--dim); font-size: 22px; }
-.pcell.pop { animation: popin .4s cubic-bezier(.3,1.6,.5,1) both; }
+.pcell.born { animation: popin .4s cubic-bezier(.3,1.6,.5,1) both; }
 @keyframes popin { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
 .strip { display: flex; gap: 8px; overflow: hidden; min-height: 66px; flex: none; }
 .strip .pcell { width: 56px; }
@@ -227,8 +227,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2.5
 .overlay .sub { text-align: center; font: 800 20px Archivo; color: var(--muted); margin-top: 10px; }
 @keyframes countpop { 0% { transform: scale(1.8); opacity: 0; } 30% { transform: scale(1); opacity: 1; } 85% { opacity: 1; } 100% { transform: scale(.86); opacity: 0; } }
 .fx { position: fixed; inset: 0; z-index: 25; pointer-events: none; overflow: hidden; }
-.pop { position: absolute; font: 900 48px Archivo; font-stretch: 112%; color: var(--gold); text-shadow: 0 5px 0 #8A5A00, 0 0 30px rgba(255,200,61,.6); animation: popup 1.2s cubic-bezier(.2,.9,.3,1) forwards; white-space: nowrap; }
-.pop.zero { color: var(--muted); text-shadow: 0 4px 0 rgba(0,0,0,.4); font-size: 36px; }
+.fx .pop { position: absolute; font: 900 48px Archivo; font-stretch: 112%; color: var(--gold); text-shadow: 0 5px 0 #8A5A00, 0 0 30px rgba(255,200,61,.6); animation: popup 1.2s cubic-bezier(.2,.9,.3,1) forwards; white-space: nowrap; }
+.fx .pop.zero { color: var(--muted); text-shadow: 0 4px 0 rgba(0,0,0,.4); font-size: 36px; }
 @keyframes popup { 0% { opacity: 0; transform: translate(-50%, 20px) scale(.6); } 20% { opacity: 1; transform: translate(-50%, 0) scale(1.12); } 70% { opacity: 1; transform: translate(-50%, -30px) scale(1); } 100% { opacity: 0; transform: translate(-50%, -70px) scale(.95); } }
 .bubble { position: absolute; bottom: 120px; display: flex; align-items: center; gap: 7px; padding: 5px 13px 5px 5px; border-radius: 999px; background: rgba(46,27,108,.97); border: 1.5px solid rgba(255,200,61,.45); font: 800 15px Archivo; animation: floatup 2.6s ease-out forwards; box-shadow: 0 10px 24px rgba(0,0,0,.45); white-space: nowrap; }
 @keyframes floatup { 0% { opacity: 0; transform: translateY(24px) scale(.7); } 12% { opacity: 1; transform: translateY(0) scale(1.06); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-280px) scale(.95); } }
@@ -395,19 +395,20 @@ body.fit1 .card.tight { padding: 10px 12px; }
 body.fit1 .card { padding: 12px 14px; }
 body.fit1 .bigcode { font-size: 50px; }
 body.fit1 .sharegrid .btn { height: 50px; font-size: 11.5px; gap: 2px; }
-body.fit1 .fit-hide1, body.fit2 .fit-hide2, body.fit3 .fit-hide3 { display: none !important; }
+body.fit1 .fit-hide1, body.fit2 .fit-hide2, body.fit3 .fit-hide3, body.fit4 .fit-hide4 { display: none !important; }
 body.fit2 .lobbyp .phead { margin-bottom: 8px; }
 body.fit2 .pgrid { gap: 8px 6px; }
 body.fit3 .bigcode { font-size: 40px; }
 body.fit3 .bulbs { display: none; }
-body.fit3 .sharegrid .btn { height: 42px; font-size: 0; gap: 0; }
+body.fit4 .sharegrid .btn { height: 42px; font-size: 0; gap: 0; }
 body.fit3 .pcell { width: 50px; gap: 3px; }
 body.fit3 .pcell .disc.lg { width: 42px; height: 42px; font-size: 14px; }
 body.fit3 .pcell .nm { font-size: 11.5px; max-width: 50px; }
 body.fit3 .pcell .st { height: 12px; font-size: 10px; }
 /* Last resort on very small screens: the stage scrolls inside itself rather than overlapping. */
-body.fit4 .stage > .main { overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
-body.fit4 .stage > .main::-webkit-scrollbar { display: none; }
+body.fit5 .stage > .main { overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
+body.fit5 .stage > .main::-webkit-scrollbar { display: none; }
 .list.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 30px), transparent); mask-image: linear-gradient(#000 calc(100% - 30px), transparent); }
 body.fit1 .mine-card .ans-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 body.fit2 .mine-card .ans-text { -webkit-line-clamp: 2; }
+#lerr:empty { display: none; }

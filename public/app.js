@@ -205,9 +205,9 @@ document.addEventListener("keydown", unlockAudio);
 const vv = window.visualViewport;
 let baseH = vv ? vv.height : window.innerHeight;
 // Every screen must fit the phone with nothing overlapping. When the content is taller than the stage
-// (short phones, browser toolbars, many players): tighten spacing and drop extras (fit1-fit3), then scale
-// the screen down smoothly, and only on the tiniest screens let the middle scroll (fit4).
-const FITS = ["fit1", "fit2", "fit3", "fit4"];
+// (short phones, browser toolbars, many players): tighten spacing and drop extras step by step (fit1-fit4),
+// trying a slight scale-down at each step, and only on the tiniest screens let the middle scroll (fit5).
+const FITS = ["fit1", "fit2", "fit3", "fit4", "fit5"];
 const MIN_ZOOM = 0.72;
 let fitQueued = false;
 function fitStage() {
@@ -223,16 +223,15 @@ function fitSteps(m) {
   const shrink = (floor) => { for (let i = 0, z = 1; i < 3 && over() && z > floor; i++) { z = Math.max(floor, z * (m.clientHeight / m.scrollHeight) - 0.005); zoom(z); } };
   body.remove(...FITS); zoom(1);
   if (!over()) return;
-  body.add("fit1"); if (!over()) return;
-  shrink(0.86); if (!over()) return; // a slight scale-down keeps everything on screen
-  zoom(1); body.add("fit2"); if (!over()) return;
-  body.add("fit3"); if (!over()) return;
-  shrink(MIN_ZOOM); if (over()) body.add("fit4");
+  // Each step first tries a slight scale-down, so content is only dropped when that is not enough.
+  for (const f of FITS.slice(0, 4)) { zoom(1); body.add(f); if (!over()) return; shrink(0.86); if (!over()) return; }
+  shrink(MIN_ZOOM); if (over()) body.add("fit5");
 }
 // A soft fade at the bottom of a list that has more to scroll.
 function moreHint(l) { l.classList.toggle("more", l.scrollHeight > l.clientHeight + 2 && l.scrollTop + l.clientHeight < l.scrollHeight - 4); }
 document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("list")) moreHint(e.target); }, true);
-function queueFit() { if (!fitQueued) { fitQueued = true; requestAnimationFrame(fitStage); } }
+// Runs right after the DOM changes (a microtask), so it works even where animation frames are paused.
+function queueFit() { if (!fitQueued) { fitQueued = true; queueMicrotask(fitStage); } }
 new MutationObserver(queueFit).observe($("#stage"), { childList: true, subtree: true });
 // Web fonts change text size after the first paint, so fit again once they load.
 document.fonts?.ready.then(queueFit); document.fonts?.addEventListener?.("loadingdone", queueFit);
@@ -686,14 +685,14 @@ function renderLobby() {
   const s = state;
   Sound.music("lobby");
   const slots = Math.max(0, Math.min(12, Math.max(4, s.players.length + 1)) - s.players.length);
-  const cells = s.players.map((p) => `<div class="pcell pop" data-k="${p.id}">${disc(p, "lg")}<span class="nm ${p.isMe ? "me" : ""}">${esc(p.name)}</span><span class="st ${p.isHost ? "host" : ""}">${p.isHost ? "Host" : p.away ? "Away" : ""}</span></div>`).join("")
+  const cells = s.players.map((p) => `<div class="pcell born" data-k="${p.id}">${disc(p, "lg")}<span class="nm ${p.isMe ? "me" : ""}">${esc(p.name)}</span><span class="st ${p.isHost ? "host" : ""}">${p.isHost ? "Host" : p.away ? "Away" : ""}</span></div>`).join("")
     + Array.from({ length: slots }, () => `<div class="pcell empty"><span class="disc lg">+</span><span class="nm">Invite</span><span class="st"></span></div>`).join("");
   const modeLine = `${{ timed: "Classic", untimed: "Chill", race: "Race" }[s.mode]}  ·  ${plural(s.numQuestions, "question")}${s.mode === "timed" ? `  ·  ${s.secondsPerQ}s each` : ""}`;
   if ($("#lobby")) {
     const grid = $("#pgrid");
     const known = new Set($$("[data-k]", grid).map((e) => e.dataset.k));
     grid.innerHTML = cells;
-    $$("[data-k]", grid).forEach((e) => { if (known.has(e.dataset.k)) e.classList.remove("pop"); });
+    $$("[data-k]", grid).forEach((e) => { if (known.has(e.dataset.k)) e.classList.remove("born"); });
     $("#pcount").textContent = `${s.players.length} of 12`;
     $("#ltopic").textContent = s.topic; $("#lmode").textContent = modeLine;
     $("#lerr").textContent = s.error || "";
