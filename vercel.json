@@ -2,5 +2,9 @@
   "functions": {
     "api/room/[action].js": { "maxDuration": 60 },
     "api/*.js": { "maxDuration": 30 }
-  }
+  },
+  "headers": [
+    { "source": "/(.*)\\.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+    { "source": "/", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+  ]
 }

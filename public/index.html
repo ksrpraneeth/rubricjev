@@ -34,9 +34,9 @@
   .hud .mid { flex: 1; min-width: 0; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); font-size: 13.5px; }
   .hud .clock { font: 800 30px/1 "Barlow Semi Condensed", system-ui, sans-serif; min-width: 44px; text-align: right; color: var(--gold); }
   .hud .clock.warn { color: var(--red); }
-  .hud .ib { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--muted); }
-  .hud .ib:hover { color: var(--ink); background: var(--panel2); }
-  .hud .ib svg { width: 18px; height: 18px; }
+  .ib { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--muted); padding: 0; }
+  .ib:hover { color: var(--ink); background: var(--panel2); }
+  .ib svg { width: 18px; height: 18px; }
   .tbar { background: var(--line); }
   .tbar i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .95s linear, background .3s; }
   .tbar i.warn { background: var(--red); }
@@ -95,7 +95,7 @@
   .pcell { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px; }
   .pcell .nm { font-size: 11.5px; color: var(--muted); max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pcell .nm.me { color: var(--ink); font-weight: 600; }
-  .pcell .st { font-size: 10px; color: var(--dim); height: 12px; }
+  .pcell .st { font-size: 11.5px; font-weight: 600; color: var(--dim); height: 14px; white-space: nowrap; }
   .pcell .st.done { color: var(--green); } .pcell .st.typing { color: var(--blue); }
   .strip { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -262,6 +262,7 @@ function openSheet(title, body, foot) {
   $("#sheetclose").onclick = closeSheet; $("#sheetbg").onclick = closeSheet;
 }
 function closeSheet() { $("#sheet").classList.remove("on"); $("#sheetbg").classList.remove("on"); }
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 
 function openMenu() {
   const s = state; if (!s) return;
@@ -434,9 +435,10 @@ function renderPlaying() {
             <textarea id="ans" placeholder="Explain in your own words. Be specific." ${inCount ? "disabled" : ""}></textarea>
             <div class="locked hidden" id="lockedbox"></div>
           </div>
+          <p class="small" id="live" style="color:var(--blue);min-height:18px"></p>
           <div class="strip" id="pl"></div>
         </div>`,
-      side: `<div class="panel fill"><div class="qhead"><h2>Standings</h2></div><div class="list" id="lb"></div></div>`,
+      side: `<div class="panel fill"><div class="qhead"><h2>Players</h2></div><div class="list" id="lb"></div></div>`,
       dock: `<span class="note" id="note">${s.mode === "timed" ? "Speed counts" : "Reveals when everyone has answered"}</span>${s.mode === "untimed" && s.isHost ? `<button class="btn ghost sm" id="force">Reveal now</button>` : ""}<button class="btn" id="submit" ${inCount ? "disabled" : ""}>Lock in</button>`,
     });
     const ta = $("#ans");
@@ -455,7 +457,9 @@ function renderPlaying() {
   if (s.myAnswer && !$("#lockedbox").classList.contains("shown")) showLocked(s.myAnswer.text);
   const waiting = s.players.filter((p) => !p.submitted && !p.away).length;
   $("#pl").innerHTML = s.players.map((p) => `<div class="pcell" style="width:52px">${av(p, "", p.submitted ? "done" : p.typing ? "typing" : "")}<span class="nm ${p.isMe ? "me" : ""}">${esc(p.name)}</span><span class="st ${p.submitted ? "done" : p.typing ? "typing" : ""}">${p.submitted ? "locked" : p.typing ? `typing ${p.chars}` : p.chars ? `${p.chars} chars` : p.away ? "away" : ""}</span></div>`).join("");
-  if ($("#lb")) $("#lb").innerHTML = standings(s.players, false);
+  if ($("#lb")) $("#lb").innerHTML = s.players.map((p) => `<div class="row ${p.isMe ? "me" : ""}">${av(p, "sm", p.submitted ? "done" : p.typing ? "typing" : "")}<span class="nm">${esc(p.name)}<small>${p.submitted ? "Locked in" : p.typing ? `Typing, ${p.chars} characters` : p.chars ? `${p.chars} characters so far` : p.away ? "Away" : "Thinking"}</small></span><span class="pt">${p.score}</span></div>`).join("");
+  const typers = s.players.filter((p) => !p.isMe && p.typing);
+  if ($("#live")) $("#live").textContent = typers.length ? typers.map((p) => `${p.name} is typing (${p.chars})`).join(", ") : "";
   if (s.myAnswer) $("#note").textContent = waiting ? `Waiting for ${waiting} player${waiting === 1 ? "" : "s"}` : "Grading";
   if (s.mode === "timed") tickTimer();
   function showLocked(text) {
@@ -527,7 +531,7 @@ function renderReveal() {
   revealNote();
 }
 function revealNote() {
-  const s = state; const el = $("#note"); if (!el) return;
+  const s = state; const el = $("#note"); if (!el || s.status !== "reveal") return;
   if (s.revealAutoMs && s.round?.revealedAt) { const left = Math.max(0, Math.ceil((s.round.revealedAt + s.revealAutoMs - serverNow()) / 1000)); el.textContent = (s.isHost ? "Auto-advances in " : "Next rung in ") + left + "s"; if (left > 0 && s.status === "reveal") setTimeout(revealNote, 500); }
   else el.textContent = s.isHost ? "" : "Host advances to the next rung";
 }
@@ -535,7 +539,7 @@ function revealNote() {
 // ---- race ----
 function renderRace() {
   const s = state, n = s.totalQuestions;
-  const lanes = `<div class="lanes">${s.players.map((p) => `<div class="lane">${av(p, "sm", p.typing ? "typing" : "")}<span style="min-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span><div class="bar"><i class="${p.isMe ? "me" : ""}" style="width:${Math.min(100, (p.progress / n) * 100)}%"></i></div><span class="muted tiny" style="min-width:36px;text-align:right">${Math.min(p.progress, n)}/${n}</span>${p.chars && !p.isMe ? `<span class="tiny" style="color:var(--blue);min-width:44px;text-align:right">${p.chars} ch</span>` : ""}</div>`).join("")}</div>`;
+  const lanes = `<div class="lanes">${s.players.map((p) => `<div class="lane">${av(p, "sm", p.typing ? "typing" : "")}<span style="min-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span><div class="bar"><i class="${p.isMe ? "me" : ""}" style="width:${Math.min(100, (p.progress / n) * 100)}%"></i></div><span class="muted tiny" style="min-width:36px;text-align:right">${Math.min(p.progress, n)}/${n}</span>${!p.isMe && (p.typing || p.chars) ? `<span class="tiny" style="color:var(--blue);min-width:70px;text-align:right">${p.typing ? "typing" : ""} ${p.chars} ch</span>` : ""}</div>`).join("")}</div>`;
   if (s.finishedMine) {
     if (renderedRound !== 999) { renderedRound = 999; shell({ hud: esc(s.topic), stage: `<div class="panel fill" style="gap:10px"><h2>You reached the top</h2><p class="muted small">Waiting for the others to finish.</p><div id="track"></div><div class="list" id="lb"></div></div>`, dock: `<span class="note">Final results once everyone is done</span>` }); }
     $("#track").innerHTML = lanes; $("#lb").innerHTML = standings(s.players, false); return;
