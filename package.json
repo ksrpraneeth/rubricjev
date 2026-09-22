@@ -4,5 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node --env-file=.env server.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.39.0"
   }
 }

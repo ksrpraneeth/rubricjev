@@ -2,198 +2,487 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Explain It Back</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ladder</title>
+<meta name="description" content="Pick a topic, climb the ladder from easy to expert, best answers win.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f6f7f9; --panel: #ffffff; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb;
-    --accent: #2f5bea; --pass: #15803d; --pass-bg: #dcfce7; --part: #b45309; --part-bg: #fef3c7;
-    --miss: #b91c1c; --miss-bg: #fee2e2; --radius: 12px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #0f1115; --panel: #171a21; --ink: #e8eaf0; --muted: #9aa3b2; --line: #2a2f3a;
-      --pass-bg: #113322; --part-bg: #3a2a08; --miss-bg: #3b1212; }
+    --bg: #0b0d14; --bg2: #121521; --panel: #171b2a; --line: #262b3d; --ink: #f2f4fa; --muted: #8b93ab;
+    --accent: #ffcc33; --accent-ink: #1a1400; --blue: #4f8cff; --green: #38d996; --red: #ff5d6c; --amber: #ffb547; --purple: #b388ff;
+    --radius: 16px; --shadow: 0 10px 30px rgba(0,0,0,.35);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
-  header { padding: 18px 24px; border-bottom: 1px solid var(--line); background: var(--panel); display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-  header h1 { font-size: 18px; margin: 0; }
-  header .sub { color: var(--muted); font-size: 13px; }
-  header .stats { margin-left: auto; color: var(--muted); font-size: 13px; }
-  header select { font: inherit; font-size: 13.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
-  .layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 60px); }
-  nav { border-right: 1px solid var(--line); background: var(--panel); padding: 14px 10px; overflow-y: auto; }
-  nav h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 10px 6px; }
-  nav button { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 8px; color: var(--ink); cursor: pointer; font: inherit; font-size: 13.5px; line-height: 1.35; }
-  nav button:hover { background: var(--bg); }
-  nav button.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; border: 1.5px solid var(--line); }
-  .dot.pass { background: var(--pass); border-color: var(--pass); }
-  .dot.part { background: var(--part); border-color: var(--part); }
-  .dot.miss { background: var(--miss); border-color: var(--miss); }
-  main { padding: 28px; max-width: 860px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; margin-bottom: 18px; }
-  .topic { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
-  .prompt { font-size: 21px; font-weight: 600; margin: 0 0 14px; line-height: 1.3; }
-  textarea { width: 100%; min-height: 160px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; resize: vertical; }
-  textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
-  .row { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
-  .btn { background: var(--accent); color: #fff; border: 0; padding: 10px 18px; border-radius: 9px; font: inherit; font-weight: 600; cursor: pointer; }
-  .btn:disabled { opacity: .55; cursor: wait; }
-  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
-  .hint { color: var(--muted); font-size: 13px; }
-  .err { color: var(--miss); font-size: 13px; }
-  .verdict { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-  .badge { font-weight: 700; padding: 6px 12px; border-radius: 999px; font-size: 14px; }
-  .badge.pass { background: var(--pass-bg); color: var(--pass); }
-  .badge.part { background: var(--part-bg); color: var(--part); }
-  .badge.miss { background: var(--miss-bg); color: var(--miss); }
-  .meta { color: var(--muted); font-size: 12.5px; }
-  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
-  .crit { display: grid; grid-template-columns: 22px 1fr 110px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
-  .crit:first-of-type { border-top: 0; }
-  .mark { font-weight: 700; text-align: center; }
-  .mark.pass { color: var(--pass); } .mark.part { color: var(--part); } .mark.miss { color: var(--miss); }
-  .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
-  .bar i { display: block; height: 100%; }
-  .bar.pass i { background: var(--pass); } .bar.part i { background: var(--part); } .bar.miss i { background: var(--miss); }
-  .dist { display: flex; gap: 6px; margin-top: 8px; }
-  .dist span { flex: 1; font-size: 11.5px; color: var(--muted); text-align: center; }
-  .dist b { display: block; height: 6px; background: var(--line); border-radius: 3px; margin-bottom: 4px; overflow: hidden; }
-  .dist b i { display: block; height: 100%; background: var(--accent); }
-  .empty { color: var(--muted); }
-  @media (max-width: 760px) {
-    .layout { grid-template-columns: 1fr; }
-    nav { border-right: 0; border-bottom: 1px solid var(--line); max-height: 40vh; }
-    main { padding: 16px; }
-  }
+  html, body { height: 100%; }
+  body { margin: 0; background: radial-gradient(1200px 600px at 20% -10%, #1d2340 0%, var(--bg) 55%); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, .display { font-family: Sora, Inter, sans-serif; letter-spacing: -.02em; }
+  h1 { font-size: clamp(34px, 7vw, 56px); font-weight: 800; margin: 0; line-height: 1.05; }
+  h2 { font-size: 22px; font-weight: 800; margin: 0 0 8px; }
+  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+  p { margin: 0 0 10px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .center { text-align: center; }
+  label { display: block; font-size: 12.5px; color: var(--muted); margin: 12px 0 5px; font-weight: 500; }
+  input, select, textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); border-color: transparent; }
+  textarea { min-height: 130px; resize: vertical; font-size: 16px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 15px Inter, sans-serif; padding: 12px 20px; border-radius: 12px; border: 0; cursor: pointer; background: var(--accent); color: var(--accent-ink); transition: transform .08s ease, filter .15s; }
+  .btn:hover { filter: brightness(1.06); } .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn.blue { background: var(--blue); color: #fff; }
+  .btn.big { font-size: 18px; padding: 16px 28px; border-radius: 14px; }
+  .btn.wide { width: 100%; }
+  .err { color: var(--red); font-size: 13.5px; min-height: 18px; margin-top: 8px; }
+  .hidden { display: none !important; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+
+  /* segmented */
+  .seg { display: flex; background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); font: 600 13.5px Inter; padding: 9px 6px; border-radius: 9px; cursor: pointer; }
+  .seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .range { display: flex; align-items: center; gap: 12px; }
+  .range input[type=range] { flex: 1; padding: 0; accent-color: var(--accent); }
+  .range output { font: 800 22px Sora; min-width: 40px; text-align: right; }
+
+  /* code */
+  .code { font: 800 clamp(40px, 12vw, 72px)/1 Sora; letter-spacing: .18em; color: var(--accent); text-shadow: 0 0 40px rgba(255,204,51,.35); }
+
+  /* players */
+  .players { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; background: var(--bg2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px 6px 6px; font-weight: 500; font-size: 14px; }
+  .chip .av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); font-size: 17px; }
+  .chip.me { border-color: var(--accent); }
+  .chip.done { border-color: var(--green); }
+  .chip .st { font-size: 12px; color: var(--muted); }
+  .chip .st.done { color: var(--green); }
+  .dots span { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); margin: 0 1px; animation: bounce 1s infinite; }
+  .dots span:nth-child(2) { animation-delay: .15s; } .dots span:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); opacity: .5 } 40% { transform: translateY(-4px); opacity: 1 } }
+
+  /* ladder + timer */
+  .topbar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .ladder { display: flex; gap: 4px; flex: 1; }
+  .ladder i { flex: 1; height: 8px; border-radius: 4px; background: var(--line); }
+  .ladder i.done { background: var(--green); } .ladder i.cur { background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+  .diff { font: 800 13px Sora; text-transform: uppercase; letter-spacing: .08em; padding: 5px 10px; border-radius: 8px; background: var(--bg2); border: 1px solid var(--line); white-space: nowrap; }
+  .mult { font: 800 13px Sora; color: var(--accent); white-space: nowrap; }
+  .timer { position: relative; width: 64px; height: 64px; flex: none; }
+  .timer svg { transform: rotate(-90deg); }
+  .timer circle { fill: none; stroke-width: 6; }
+  .timer .bg { stroke: var(--line); } .timer .fg { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset .9s linear, stroke .3s; }
+  .timer.warn .fg { stroke: var(--red); }
+  .timer b { position: absolute; inset: 0; display: grid; place-items: center; font: 800 18px Sora; }
+  .prompt { font: 800 clamp(22px, 4.2vw, 32px)/1.2 Sora; margin: 6px 0 16px; }
+  .locked { background: linear-gradient(135deg, rgba(56,217,150,.15), rgba(79,140,255,.12)); border: 1px solid rgba(56,217,150,.4); border-radius: 12px; padding: 14px 16px; }
+
+  /* reveal */
+  .ans { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; background: var(--bg2); animation: rise .35s ease both; position: relative; }
+  .ans.me { border-color: var(--accent); }
+  .ans.top { border-color: var(--accent); background: linear-gradient(135deg, rgba(255,204,51,.12), var(--bg2)); }
+  .ans .crown { position: absolute; top: -12px; right: 14px; background: var(--accent); color: var(--accent-ink); font: 800 11px Sora; padding: 4px 9px; border-radius: 999px; letter-spacing: .06em; }
+  .ans .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ans .pts { margin-left: auto; font: 800 22px Sora; color: var(--accent); }
+  .ans .pts small { font: 600 11px Inter; color: var(--muted); display: block; text-align: right; }
+  .ans .text { white-space: pre-wrap; margin: 6px 0 10px; line-height: 1.5; }
+  .ans .text.empty { color: var(--muted); font-style: italic; }
+  .tick { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; padding: 3px 0; }
+  .tick b { flex: none; width: 18px; text-align: center; }
+  .tick.pass b { color: var(--green); } .tick.part b { color: var(--amber); } .tick.miss b { color: var(--red); }
+  .tick .p { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .tag { font: 600 11.5px Inter; padding: 3px 8px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  .tag.good { color: var(--green); border-color: rgba(56,217,150,.4); } .tag.bad { color: var(--red); border-color: rgba(255,93,108,.4); } .tag.gold { color: var(--accent); border-color: rgba(255,204,51,.4); }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+
+  /* leaderboard */
+  .lb { display: flex; flex-direction: column; gap: 6px; }
+  .lb .r { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--bg2); border: 1px solid var(--line); transition: transform .4s; }
+  .lb .r.me { border-color: var(--accent); }
+  .lb .rank { font: 800 14px Sora; width: 22px; color: var(--muted); }
+  .lb .r:nth-child(1) .rank { color: var(--accent); }
+  .lb .score { margin-left: auto; font: 800 16px Sora; }
+  .flame { font-size: 12px; color: var(--amber); font-weight: 600; }
+  .layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; }
+  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+
+  /* generating */
+  .steps { display: flex; gap: 6px; margin: 16px 0; }
+  .steps i { flex: 1; height: 10px; border-radius: 5px; background: var(--line); animation: glow 1.4s infinite; }
+  @keyframes glow { 0%, 100% { background: var(--line) } 50% { background: var(--accent) } }
+
+  /* podium */
+  .podium { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: end; margin: 20px 0; }
+  .pod { text-align: center; border-radius: 14px 14px 6px 6px; padding: 14px 8px; background: var(--bg2); border: 1px solid var(--line); animation: rise .5s ease both; }
+  .pod .av { font-size: 38px; } .pod .nm { font-weight: 600; } .pod .sc { font: 800 20px Sora; color: var(--accent); }
+  .pod.p1 { order: 2; min-height: 170px; border-color: var(--accent); background: linear-gradient(180deg, rgba(255,204,51,.18), var(--bg2)); }
+  .pod.p2 { order: 1; min-height: 135px; } .pod.p3 { order: 3; min-height: 110px; }
+  .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .confetti i { position: absolute; top: -10px; width: 8px; height: 14px; opacity: .9; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); opacity: .6 } }
+  details { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; background: var(--bg2); }
+  summary { cursor: pointer; font-weight: 600; }
+  .race-track { display: flex; flex-direction: column; gap: 6px; }
+  .race-track .lane { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .race-track .bar { flex: 1; height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+  .race-track .bar i { display: block; height: 100%; background: var(--blue); transition: width .5s; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); padding: 10px 16px; border-radius: 12px; box-shadow: var(--shadow); font-size: 14px; animation: rise .3s; z-index: 9; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Explain It Back</h1>
-  <select id="set" title="Question set"></select>
-  <span class="sub" id="setdesc">Answer in your own words. Jev grades each rubric point in one call.</span>
-  <span class="stats" id="stats"></span>
-</header>
-<div class="layout">
-  <nav id="nav"></nav>
-  <main>
-    <div class="card">
-      <div class="topic" id="topic"></div>
-      <p class="prompt" id="prompt"></p>
-      <textarea id="answer" placeholder="Explain it as if to a colleague. Two to five sentences is plenty."></textarea>
-      <div class="row">
-        <button class="btn" id="grade">Grade my answer</button>
-        <button class="btn ghost" id="next">Next question</button>
-        <span class="hint" id="hint">Ctrl/Cmd + Enter to grade</span>
-        <span class="err" id="err"></span>
+<div class="wrap" id="app"></div>
+<div class="confetti" id="confetti"></div>
+<script>
+// ---------- state ----------
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let session = null; try { session = JSON.parse(localStorage.getItem("ladder:session") || "null"); } catch {}
+let state = null, timeOffset = 0, pollTimer = null, lastScreen = "", draft = "", lastTyping = 0, renderedRound = -1, lastRanks = {};
+const post = async (action, body) => {
+  const r = await fetch(`/api/room/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const data = await r.json().catch(() => ({ error: r.statusText }));
+  if (!r.ok) throw new Error(data.error || "Request failed");
+  return data;
+};
+const saveSession = (s) => { session = s; try { localStorage.setItem("ladder:session", JSON.stringify(s)); } catch {} };
+const clearSession = () => { session = null; try { localStorage.removeItem("ladder:session"); } catch {} };
+const toast = (msg) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); };
+const lvl = (p) => p >= 0.7 ? "pass" : p >= 0.4 ? "part" : "miss";
+const pct = (p) => Math.round((p || 0) * 100) + "%";
+const modeName = { timed: "Timed", untimed: "Untimed", race: "Race" };
+
+// ---------- home ----------
+function renderHome() {
+  const params = new URLSearchParams(location.search);
+  const joinCode = (params.get("room") || "").toUpperCase();
+  $("#app").innerHTML = `
+    <div class="center" style="padding:30px 0 22px">
+      <h1>Ladder</h1>
+      <p class="muted" style="font-size:17px;margin-top:8px">Pick any topic. Climb from child-easy to expert-only.<br>Answer in your own words. Best answers win.</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h2>Create a room</h2>
+        <label>Your name</label><input id="c-name" maxlength="20" placeholder="Priya" autocomplete="nickname">
+        <label>Topic</label><input id="c-topic" maxlength="120" placeholder="Hyderabadi biryani, Cricket, The human heart, Harry Potter…">
+        <label>Mode</label>
+        <div class="seg" id="c-mode">
+          <button data-v="timed" class="on">⏱ Timed</button><button data-v="untimed">🤝 Untimed</button><button data-v="race">🏁 Race</button>
+        </div>
+        <p class="small muted" id="c-modehelp" style="margin-top:6px">Everyone answers the same question against the clock. Speed earns bonus points.</p>
+        <label>Questions</label>
+        <div class="range"><input type="range" id="c-n" min="3" max="20" value="8"><output id="c-nout">8</output></div>
+        <div id="c-secwrap"><label>Seconds per question</label>
+        <div class="range"><input type="range" id="c-sec" min="20" max="180" step="10" value="60"><output id="c-secout">60</output></div></div>
+        <div style="margin-top:16px"><button class="btn wide big" id="c-go">Create room</button></div>
+        <div class="err" id="c-err"></div>
+      </div>
+      <div class="card">
+        <h2>Join a room</h2>
+        <label>Your name</label><input id="j-name" maxlength="20" placeholder="Arjun" autocomplete="nickname">
+        <label>Room code</label><input id="j-code" maxlength="4" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.2em;font-weight:700" value="${esc(joinCode)}">
+        <div style="margin-top:16px"><button class="btn wide big blue" id="j-go">Join</button></div>
+        <div class="err" id="j-err"></div>
+        <h3>How scoring works</h3>
+        <p class="small muted">Jev, a decision model, checks each rubric point of your answer. Harder rungs are worth up to 2×. Fast answers get up to +25%. Three good answers in a row start a streak bonus. A common misconception halves your points.</p>
       </div>
     </div>
-    <div class="card" id="result"><p class="empty">Your rubric breakdown will appear here.</p></div>
-  </main>
-</div>
-<script>
-const PASS = 0.7, PART = 0.4;
-let questions = [], current = null, currentSet = null;
-const store = {
-  get() { try { return JSON.parse(localStorage.getItem("eib:" + currentSet) || "{}"); } catch { return {}; } },
-  set(v) { try { localStorage.setItem("eib:" + currentSet, JSON.stringify(v)); } catch {} },
-};
-const $ = (id) => document.getElementById(id);
-const level = (p) => p >= PASS ? "pass" : p >= PART ? "part" : "miss";
-const pct = (p) => Math.round(p * 100) + "%";
-
-function verdictOf(r) {
-  const s = r.overall.score ?? 0;
-  return s >= 2.5 ? ["pass", "Excellent"] : s >= 1.5 ? ["pass", "Good"] : s >= 0.75 ? ["part", "Partial"] : ["miss", "Missing"];
+    <p class="center small muted" style="margin-top:22px">Solo practice with fixed question sets: <a href="/practice.html" style="color:var(--blue)">practice mode</a></p>`;
+  const help = { timed: "Everyone answers the same question against the clock. Speed earns bonus points.", untimed: "No clock. The round reveals when everyone has answered. Host can force it.", race: "Each player climbs at their own pace. Live leaderboard. Fast and frantic." };
+  let mode = "timed";
+  $("#c-mode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; mode = b.dataset.v; [...$("#c-mode").children].forEach((x) => x.classList.toggle("on", x === b)); $("#c-modehelp").textContent = help[mode]; $("#c-secwrap").classList.toggle("hidden", mode !== "timed"); };
+  $("#c-n").oninput = (e) => $("#c-nout").textContent = e.target.value;
+  $("#c-sec").oninput = (e) => $("#c-secout").textContent = e.target.value;
+  $("#c-go").onclick = async () => {
+    $("#c-err").textContent = ""; $("#c-go").disabled = true;
+    try {
+      const r = await post("create", { name: $("#c-name").value, topic: $("#c-topic").value, mode, numQuestions: $("#c-n").value, secondsPerQ: $("#c-sec").value });
+      saveSession(r); history.replaceState(null, "", `?room=${r.code}`); startPolling();
+    } catch (e) { $("#c-err").textContent = e.message; } finally { $("#c-go").disabled = false; }
+  };
+  $("#j-go").onclick = async () => {
+    $("#j-err").textContent = ""; $("#j-go").disabled = true;
+    try {
+      const r = await post("join", { name: $("#j-name").value, code: $("#j-code").value });
+      saveSession(r); history.replaceState(null, "", `?room=${r.code}`); startPolling();
+    } catch (e) { $("#j-err").textContent = e.message; } finally { $("#j-go").disabled = false; }
+  };
+  (joinCode ? $("#j-name") : $("#c-name")).focus();
 }
 
-function renderNav() {
-  const saved = store.get();
-  const topics = [...new Set(questions.map((q) => q.topic))];
-  $("nav").innerHTML = topics.map((t) => `<h2>${t}</h2>` + questions.filter((q) => q.topic === t).map((q) => {
-    const r = saved[q.id]?.result;
-    const cls = r ? verdictOf(r)[0] : "";
-    return `<button data-id="${q.id}" class="${q.id === current?.id ? "active" : ""}"><span class="dot ${cls}"></span><span>${q.prompt}</span></button>`;
-  }).join("")).join("");
-  $("nav").querySelectorAll("button").forEach((b) => b.onclick = () => select(b.dataset.id));
-  const graded = questions.filter((q) => saved[q.id]?.result).length;
-  const good = questions.filter((q) => saved[q.id]?.result && verdictOf(saved[q.id].result)[0] === "pass").length;
-  $("stats").textContent = `${graded}/${questions.length} graded · ${good} good or better`;
-}
-
-function select(id) {
-  current = questions.find((q) => q.id === id);
-  const saved = store.get()[id] || {};
-  $("topic").textContent = current.topic;
-  $("prompt").textContent = current.prompt;
-  $("answer").value = saved.answer || "";
-  $("err").textContent = "";
-  saved.result ? renderResult(saved.result) : ($("result").innerHTML = '<p class="empty">Your rubric breakdown will appear here.</p>');
-  renderNav();
-  $("answer").focus();
-}
-
-function renderResult(r) {
-  const [vcls, vtext] = verdictOf(r);
-  const conf = r.overall.confidence != null ? ` · confidence ${pct(r.overall.confidence)}` : "";
-  const crit = r.criteria.map((c) => {
-    const l = level(c.p);
-    const mark = l === "pass" ? "✓" : l === "part" ? "~" : "✗";
-    return `<div class="crit"><span class="mark ${l}">${mark}</span><span>${c.text}</span><div class="bar ${l}"><i style="width:${pct(c.p)}"></i></div></div>`;
-  }).join("");
-  const mis = r.misconceptions.length ? r.misconceptions.map((m) => {
-    const fired = m.p >= 0.5;
-    return `<div class="crit"><span class="mark ${fired ? "miss" : "pass"}">${fired ? "!" : "✓"}</span><span>${fired ? "Detected: " : "Not present: "}${m.text}</span><div class="bar ${fired ? "miss" : "pass"}"><i style="width:${pct(m.p)}"></i></div></div>`;
-  }).join("") : "";
-  const probs = r.overall.probabilities ? `<div class="dist">${Object.entries(r.overall.probabilities).map(([k, v]) =>
-    `<span><b><i style="width:${pct(v)}"></i></b>${["Missing", "Partial", "Good", "Excellent"][k]} ${pct(v)}</span>`).join("")}</div>` : "";
-  $("result").innerHTML = `
-    <div class="verdict"><span class="badge ${vcls}">${vtext}</span>
-      <span class="meta">Overall ${r.overall.score?.toFixed(2)} / 3${conf} · ${r.latency_ms} ms · ${r.usage?.input_tokens ?? "?"} in / ${r.usage?.output_tokens ?? "?"} out tokens · ${r.model}</span></div>
-    ${probs}
-    <h3>Rubric points</h3>${crit}
-    ${mis ? `<h3>Misconception checks</h3>${mis}` : ""}
-    <p class="hint">Bars show Jev's probability that your answer covers each point. Green ≥ 70%, amber 40–70%, red below.</p>`;
-}
-
-async function gradeNow() {
-  const answer = $("answer").value.trim();
-  $("err").textContent = "";
-  if (answer.length < 10) { $("err").textContent = "Write at least a sentence first."; return; }
-  $("grade").disabled = true; $("grade").textContent = "Grading…";
+// ---------- polling ----------
+async function poll() {
+  if (!session) return;
   try {
-    const res = await fetch("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ set: currentSet, id: current.id, answer }) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || res.statusText);
-    const saved = store.get(); saved[current.id] = { answer, result: data }; store.set(saved);
-    renderResult(data); renderNav();
+    const s = await post("state", session);
+    timeOffset = s.serverTime - Date.now();
+    state = s; render();
   } catch (e) {
-    $("err").textContent = e.message;
-  } finally {
-    $("grade").disabled = false; $("grade").textContent = "Grade my answer";
+    if (/not found|Not a player/i.test(e.message)) { clearSession(); stopPolling(); renderHome(); toast(e.message); return; }
+    console.warn(e);
+  }
+  const fast = state && (state.status === "playing" || state.status === "generating");
+  pollTimer = setTimeout(poll, fast ? 1000 : 1800);
+}
+function startPolling() { stopPolling(); poll(); }
+function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
+const serverNow = () => Date.now() + timeOffset;
+
+// ---------- shared pieces ----------
+const playerChip = (p, opts = {}) => `<span class="chip ${p.isMe ? "me" : ""} ${p.submitted ? "done" : ""}"><span class="av">${p.avatar}</span>${esc(p.name)}${p.isHost ? ' <span class="st">host</span>' : ""}${opts.status ? `<span class="st ${p.submitted ? "done" : ""}">${p.submitted ? "✓ locked in" : p.typing ? '<span class="dots"><span></span><span></span><span></span></span>' : "…"}</span>` : ""}</span>`;
+function leaderboard(players, showDelta) {
+  return `<div class="lb">${players.map((p) => {
+    const prev = lastRanks[p.id]; const d = showDelta && prev && prev !== p.rank ? (prev > p.rank ? `<span class="small" style="color:var(--green)">▲${prev - p.rank}</span>` : `<span class="small" style="color:var(--red)">▼${p.rank - prev}</span>`) : "";
+    return `<div class="r ${p.isMe ? "me" : ""}"><span class="rank">${p.rank}</span><span>${p.avatar}</span><span>${esc(p.name)}</span>${p.streak >= 2 ? `<span class="flame">🔥${p.streak}</span>` : ""}${d}<span class="score">${p.score}</span></div>`;
+  }).join("")}</div>`;
+}
+const ladder = (i, n) => `<div class="ladder">${Array.from({ length: n }, (_, k) => `<i class="${k < i ? "done" : k === i ? "cur" : ""}"></i>`).join("")}</div>`;
+function answerCard(a, i, rubric) {
+  const top = i === 0 && a.points > 0;
+  const crit = (a.criteria || rubric.map((text) => ({ text, p: 0 }))).map((c) => `<div class="tick ${lvl(c.p)}"><b>${lvl(c.p) === "pass" ? "✓" : lvl(c.p) === "part" ? "~" : "✗"}</b><span>${esc(c.text)}</span><span class="p">${pct(c.p)}</span></div>`).join("");
+  const mis = (a.misconceptions || []).filter((m) => m.p >= 0.5).map((m) => `<div class="tick miss"><b>!</b><span>Misconception: ${esc(m.text)}</span><span class="p">${pct(m.p)}</span></div>`).join("");
+  const b = a.breakdown || {};
+  const tags = a.skipped ? "" : `<div class="tags">${b.mult ? `<span class="tag">×${b.mult} rung</span>` : ""}${b.speed ? `<span class="tag good">+${b.speed} speed</span>` : ""}${b.streak ? `<span class="tag gold">+${b.streak} streak</span>` : ""}${a.misFired ? `<span class="tag bad">½ misconception</span>` : ""}${a.flawless ? `<span class="tag gold">✦ flawless</span>` : ""}${a.ms ? `<span class="tag">${(a.ms / 1000).toFixed(1)}s</span>` : ""}</div>`;
+  return `<div class="ans ${a.playerId === state.me.id ? "me" : ""} ${top ? "top" : ""}" style="animation-delay:${i * 90}ms">${top ? '<span class="crown">BEST ANSWER</span>' : ""}
+    <div class="head"><span class="av" style="font-size:22px">${a.avatar}</span><b>${esc(a.name)}</b><span class="pts">${a.skipped ? "—" : "+" + a.points}<small>${a.skipped ? "no answer" : Math.round((a.coverage || 0) * 100) + "% covered"}</small></span></div>
+    <div class="text ${a.skipped ? "empty" : ""}">${a.skipped ? "Ran out of time" : esc(a.text)}</div>
+    ${a.skipped ? "" : crit + mis}${a.error ? `<div class="err">Grading failed: ${esc(a.error)}</div>` : ""}${tags}</div>`;
+}
+
+// ---------- screens ----------
+function render() {
+  const s = state;
+  const screen = s.status + (s.mode === "race" ? ":race" : "");
+  if (screen !== lastScreen) { lastScreen = screen; renderedRound = -1; }
+  if (s.status === "lobby") return renderLobby();
+  if (s.status === "generating") return renderGenerating();
+  if (s.mode === "race") return s.status === "finished" ? renderFinished() : renderRace();
+  if (s.status === "playing") return renderPlaying();
+  if (s.status === "reveal") return renderReveal();
+  if (s.status === "finished") return renderFinished();
+}
+
+function renderLobby() {
+  const s = state;
+  if ($("#lobby")) { // update in place
+    $("#lobby-players").innerHTML = s.players.map((p) => playerChip(p)).join("");
+    $("#lobby-count").textContent = `${s.players.length} player${s.players.length === 1 ? "" : "s"}`;
+    if (!s.isHost) { $("#lobby-topic").textContent = s.topic; $("#lobby-meta").textContent = `${modeName[s.mode]} · ${s.numQuestions} questions${s.mode === "timed" ? ` · ${s.secondsPerQ}s each` : ""}`; }
+    if (s.error) $("#lobby-err").textContent = s.error;
+    return;
+  }
+  const link = `${location.origin}/?room=${s.code}`;
+  $("#app").innerHTML = `<div id="lobby">
+    <div class="card center">
+      <p class="muted small" style="letter-spacing:.1em;text-transform:uppercase">Room code</p>
+      <div class="code">${s.code}</div>
+      <div class="row" style="justify-content:center;margin-top:12px"><button class="btn ghost" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn ghost" id="share">Share</button>' : ""}</div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card">
+        <div class="row"><h2 class="grow">Players</h2><span class="muted small" id="lobby-count">${s.players.length} players</span></div>
+        <div class="players" id="lobby-players">${s.players.map((p) => playerChip(p)).join("")}</div>
+        <p class="small muted" style="margin-top:14px">Up to 12 players. Everyone needs the code or the link.</p>
+      </div>
+      <div class="card">
+        <h2>${s.isHost ? "Settings" : "Game"}</h2>
+        ${s.isHost ? `
+          <label>Topic</label><input id="l-topic" value="${esc(s.topic)}" maxlength="120">
+          <label>Mode</label><div class="seg" id="l-mode">${["timed", "untimed", "race"].map((m) => `<button data-v="${m}" class="${s.mode === m ? "on" : ""}">${modeName[m]}</button>`).join("")}</div>
+          <label>Questions</label><div class="range"><input type="range" id="l-n" min="3" max="20" value="${s.numQuestions}"><output id="l-nout">${s.numQuestions}</output></div>
+          <div id="l-secwrap" class="${s.mode !== "timed" ? "hidden" : ""}"><label>Seconds per question</label><div class="range"><input type="range" id="l-sec" min="20" max="180" step="10" value="${s.secondsPerQ}"><output id="l-secout">${s.secondsPerQ}</output></div></div>
+          <div style="margin-top:18px"><button class="btn wide big" id="start">Start the climb →</button></div>
+          <p class="small muted" style="margin-top:8px">Generating ${s.numQuestions} questions takes about 10–20 seconds.</p>`
+        : `<p class="display" style="font-size:22px;font-weight:800" id="lobby-topic">${esc(s.topic)}</p><p class="muted" id="lobby-meta">${modeName[s.mode]} · ${s.numQuestions} questions${s.mode === "timed" ? ` · ${s.secondsPerQ}s each` : ""}</p><p class="muted small" style="margin-top:16px">Waiting for the host to start…</p>`}
+        <div class="err" id="lobby-err">${esc(s.error || "")}</div>
+      </div>
+    </div>
+    <p class="center small muted" style="margin-top:20px"><a href="#" id="leave" style="color:var(--muted)">Leave room</a></p>
+  </div>`;
+  $("#copy").onclick = async () => { try { await navigator.clipboard.writeText(link); toast("Link copied"); } catch { prompt("Copy this link", link); } };
+  if ($("#share")) $("#share").onclick = () => navigator.share({ title: "Join my Ladder room", text: `Topic: ${s.topic}. Room code ${s.code}`, url: link }).catch(() => {});
+  $("#leave").onclick = (e) => { e.preventDefault(); clearSession(); stopPolling(); history.replaceState(null, "", "/"); lastScreen = ""; renderHome(); };
+  if (s.isHost) {
+    let mode = s.mode;
+    const push = () => post("settings", { ...session, topic: $("#l-topic").value, mode, numQuestions: $("#l-n").value, secondsPerQ: $("#l-sec").value }).catch((e) => $("#lobby-err").textContent = e.message);
+    $("#l-mode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; mode = b.dataset.v; [...$("#l-mode").children].forEach((x) => x.classList.toggle("on", x === b)); $("#l-secwrap").classList.toggle("hidden", mode !== "timed"); push(); };
+    $("#l-n").oninput = (e) => $("#l-nout").textContent = e.target.value; $("#l-n").onchange = push;
+    $("#l-sec").oninput = (e) => $("#l-secout").textContent = e.target.value; $("#l-sec").onchange = push;
+    $("#l-topic").onchange = push;
+    $("#start").onclick = async () => {
+      $("#lobby-err").textContent = ""; $("#start").disabled = true; $("#start").textContent = "Building the ladder…";
+      try { await push(); await post("start", session); poll(); }
+      catch (e) { $("#lobby-err").textContent = e.message; $("#start").disabled = false; $("#start").textContent = "Start the climb →"; }
+    };
   }
 }
 
-$("grade").onclick = gradeNow;
-$("next").onclick = () => { const i = questions.findIndex((q) => q.id === current.id); select(questions[(i + 1) % questions.length].id); };
-$("answer").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") gradeNow(); });
-$("answer").addEventListener("input", () => { const s = store.get(); s[current.id] = { ...(s[current.id] || {}), answer: $("answer").value }; store.set(s); });
-
-async function loadSet(setId) {
-  const data = await fetch("/api/questions" + (setId ? "?set=" + encodeURIComponent(setId) : "")).then((r) => r.json());
-  currentSet = data.set.id;
-  questions = data.questions;
-  $("setdesc").textContent = data.set.description;
-  const sel = $("set");
-  sel.innerHTML = data.sets.map((s) => `<option value="${s.id}" ${s.id === currentSet ? "selected" : ""}>${s.title} (${s.count})</option>`).join("");
-  try { localStorage.setItem("eib:lastSet", currentSet); } catch {}
-  select(questions[0].id);
+function renderGenerating() {
+  const s = state;
+  if ($("#gen")) { $("#gen-t").textContent = Math.round(s.generatingFor / 1000) + "s"; return; }
+  $("#app").innerHTML = `<div class="card center" id="gen" style="padding:40px 20px">
+    <h2>Building your ladder</h2>
+    <p class="muted">${s.numQuestions} questions on <b style="color:var(--ink)">${esc(s.topic)}</b>, from child-easy to expert-only.</p>
+    <div class="steps">${Array.from({ length: s.numQuestions }, (_, i) => `<i style="animation-delay:${i * 90}ms"></i>`).join("")}</div>
+    <p class="small muted"><span id="gen-t">0s</span> · usually 10–20 seconds</p></div>`;
 }
-$("set").onchange = (e) => loadSet(e.target.value);
-let lastSet = null; try { lastSet = localStorage.getItem("eib:lastSet"); } catch {}
-loadSet(new URLSearchParams(location.search).get("set") || lastSet);
+
+function renderPlaying() {
+  const s = state, q = s.question, n = q.total;
+  const mult = (1 + (q.difficulty - 1) / Math.max(1, n - 1)).toFixed(1);
+  if (renderedRound !== q.index) {
+    renderedRound = q.index; draft = "";
+    $("#app").innerHTML = `<div id="play">
+      <div class="topbar">
+        <span class="diff">${q.index + 1}/${n} · ${esc(q.label)}</span>${ladder(q.index, n)}<span class="mult">×${mult}</span>
+        ${s.mode === "timed" ? `<div class="timer" id="timer"><svg width="64" height="64"><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="tfg" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="0"/></svg><b id="tnum"></b></div>` : ""}
+      </div>
+      <div class="card">
+        <p class="small muted" style="margin:0">${esc(s.topic)}</p>
+        <p class="prompt">${esc(q.prompt)}</p>
+        <div id="answerbox">
+          <textarea id="ans" placeholder="Explain in your own words. Two to four sentences. Cover the key points, be specific." autofocus></textarea>
+          <div class="row" style="margin-top:10px"><button class="btn big" id="submit">Lock in answer</button><span class="small muted">Ctrl/Cmd + Enter</span><span class="err" id="perr"></span></div>
+        </div>
+        <div id="lockedbox" class="hidden"></div>
+        <h3>Players</h3>
+        <div class="players" id="pl"></div>
+        ${s.mode === "untimed" && s.isHost ? `<div style="margin-top:14px"><button class="btn ghost" id="force">Reveal now (skip stragglers)</button></div>` : ""}
+      </div>
+    </div>`;
+    const ta = $("#ans");
+    ta.oninput = () => { draft = ta.value; const t = Date.now(); if (t - lastTyping > 1800) { lastTyping = t; post("typing", { ...session, q: q.index }).catch(() => {}); } };
+    ta.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
+    $("#submit").onclick = submit;
+    if ($("#force")) $("#force").onclick = () => post("next", session).then(poll).catch((e) => toast(e.message));
+    async function submit() {
+      const text = ta.value.trim(); if (text.length < 5) { $("#perr").textContent = "Write a bit more."; return; }
+      $("#submit").disabled = true; $("#submit").textContent = "Locking…";
+      try { await post("answer", { ...session, q: q.index, text }); showLocked(text); poll(); }
+      catch (e) { $("#perr").textContent = e.message; $("#submit").disabled = false; $("#submit").textContent = "Lock in answer"; }
+    }
+    setTimeout(() => ta.focus(), 50);
+  }
+  if (s.myAnswer && !$("#lockedbox").classList.contains("shown")) showLocked(s.myAnswer.text);
+  $("#pl").innerHTML = s.players.map((p) => playerChip(p, { status: true })).join("");
+  if (s.mode === "timed") tickTimer();
+  function showLocked(text) {
+    $("#answerbox").classList.add("hidden");
+    const box = $("#lockedbox"); box.classList.remove("hidden"); box.classList.add("shown");
+    box.innerHTML = `<div class="locked"><b>Locked in.</b> <span class="muted">Waiting for the others… Jev grades the moment everyone is in${s.mode === "timed" ? " or the clock runs out" : ""}.</span><div class="muted small" style="margin-top:8px;white-space:pre-wrap">${esc(text)}</div></div>`;
+  }
+}
+function tickTimer() {
+  const s = state; if (!s.round?.endsAt) return;
+  const total = s.secondsPerQ * 1000, left = Math.max(0, s.round.endsAt - serverNow());
+  const el = $("#timer"); if (!el) return;
+  $("#tnum").textContent = Math.ceil(left / 1000);
+  $("#tfg").style.strokeDashoffset = (169.6 * (1 - left / total)).toFixed(1);
+  el.classList.toggle("warn", left < 10000);
+  if (left > 0 && state.status === "playing") requestAnimationFrame(() => setTimeout(tickTimer, 250));
+  else if (left <= 0 && $("#submit") && !$("#submit").disabled) { $("#submit").disabled = true; $("#submit").textContent = "Time's up"; }
+}
+
+function renderReveal() {
+  const s = state, q = s.question, r = s.reveal;
+  if (renderedRound === q.index) { $("#lb").innerHTML = leaderboard(s.players, true); return; }
+  renderedRound = q.index;
+  const winner = r.answers[0]?.points > 0 ? r.answers[0] : null;
+  const mine = r.answers.find((a) => a.playerId === s.me.id);
+  $("#app").innerHTML = `<div class="topbar"><span class="diff">${q.index + 1}/${q.total} · ${esc(q.label)}</span>${ladder(q.index + 1, q.total)}</div>
+    <div class="layout">
+      <div>
+        <div class="card" style="margin-bottom:14px">
+          <p class="prompt" style="font-size:22px">${esc(q.prompt)}</p>
+          ${winner ? `<p><b style="color:var(--accent)">${winner.avatar} ${esc(winner.name)}</b> takes the rung with ${winner.points} points${mine && mine.playerId === winner.playerId ? " — that's you!" : ""}.</p>` : `<p class="muted">Nobody scored on this rung. Tough one.</p>`}
+          <details><summary>What a full answer covers</summary><ul class="small" style="margin:8px 0 0 18px;padding:0">${r.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></details>
+        </div>
+        ${r.answers.map((a, i) => answerCard(a, i, r.rubric)).join("")}
+      </div>
+      <div>
+        <div class="card"><h2>Leaderboard</h2><div id="lb">${leaderboard(s.players, true)}</div>
+          ${s.isHost ? `<div style="margin-top:16px"><button class="btn wide big" id="next">${q.index + 1 >= q.total ? "See final results 🏆" : "Next rung →"}</button></div>` : `<p class="small muted" style="margin-top:14px">Host advances to the next rung.</p>`}
+        </div>
+      </div>
+    </div>`;
+  lastRanks = Object.fromEntries(s.players.map((p) => [p.id, p.rank]));
+  if ($("#next")) $("#next").onclick = () => { $("#next").disabled = true; post("next", session).then(poll).catch((e) => { toast(e.message); $("#next").disabled = false; }); };
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderRace() {
+  const s = state, n = s.totalQuestions;
+  const track = `<div class="race-track">${s.players.map((p) => `<div class="lane"><span>${p.avatar}</span><span style="min-width:70px">${esc(p.name)}</span><div class="bar"><i style="width:${Math.min(100, (p.progress / n) * 100)}%"></i></div><span class="muted" style="min-width:34px;text-align:right">${Math.min(p.progress, n)}/${n}</span>${p.typing ? '<span class="dots"><span></span><span></span><span></span></span>' : ""}</div>`).join("")}</div>`;
+  if (s.finishedMine) {
+    if (renderedRound !== 999) { renderedRound = 999; $("#app").innerHTML = `<div class="card center"><h2>You reached the top 🎉</h2><p class="muted">Waiting for the others to finish.</p><div id="track" style="text-align:left;margin-top:16px"></div><h3>Leaderboard</h3><div id="lb" style="text-align:left"></div></div>`; }
+    $("#track").innerHTML = track; $("#lb").innerHTML = leaderboard(s.players, false); return;
+  }
+  const q = s.question, mult = (1 + (q.difficulty - 1) / Math.max(1, n - 1)).toFixed(1);
+  if (renderedRound !== q.index) {
+    renderedRound = q.index;
+    const last = s.lastGraded;
+    $("#app").innerHTML = `<div class="topbar"><span class="diff">${q.index + 1}/${n} · ${esc(q.label)}</span>${ladder(q.index, n)}<span class="mult">×${mult}</span></div>
+      <div class="layout"><div>
+        ${last ? `<div class="card" style="margin-bottom:14px;padding:14px 16px"><p class="small muted" style="margin:0 0 4px">Previous rung · ${esc(last.prompt)}</p>${answerCard(last, 1, last.rubric)}</div>` : ""}
+        <div class="card">
+          <p class="prompt">${esc(q.prompt)}</p>
+          <textarea id="ans" placeholder="Explain in your own words. Be specific, be quick." autofocus></textarea>
+          <div class="row" style="margin-top:10px"><button class="btn big" id="submit">Lock in →</button><span class="small muted">Faster answers score more</span><span class="err" id="perr"></span></div>
+        </div></div>
+        <div><div class="card"><h2>Race</h2><div id="track">${track}</div><h3>Leaderboard</h3><div id="lb">${leaderboard(s.players, false)}</div></div></div>
+      </div>`;
+    const ta = $("#ans");
+    ta.oninput = () => { const t = Date.now(); if (t - lastTyping > 1800) { lastTyping = t; post("typing", { ...session, q: q.index }).catch(() => {}); } };
+    ta.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
+    $("#submit").onclick = submit;
+    async function submit() {
+      const text = ta.value.trim(); if (text.length < 5) { $("#perr").textContent = "Write a bit more."; return; }
+      $("#submit").disabled = true; $("#submit").textContent = "Grading…";
+      try { const r = await post("answer", { ...session, q: q.index, text }); toast(`+${r.graded.points} points`); await poll(); }
+      catch (e) { $("#perr").textContent = e.message; $("#submit").disabled = false; $("#submit").textContent = "Lock in →"; }
+    }
+    setTimeout(() => ta.focus(), 50);
+  } else { $("#track").innerHTML = track; $("#lb").innerHTML = leaderboard(s.players, false); }
+}
+
+function renderFinished() {
+  const s = state;
+  if (renderedRound === 777) { if (s.isHost === false) return; return; }
+  renderedRound = 777;
+  const top = s.players.slice(0, 3);
+  const pod = (p, cls) => p ? `<div class="pod ${cls}"><div class="av">${p.avatar}</div><div class="nm">${esc(p.name)}</div><div class="sc">${p.score}</div></div>` : `<div class="pod ${cls}"></div>`;
+  const me = s.players.find((p) => p.isMe);
+  $("#app").innerHTML = `<div class="card center"><p class="muted small" style="letter-spacing:.1em;text-transform:uppercase">${esc(s.topic)}</p><h1 style="font-size:36px">${top[0] ? `${top[0].avatar} ${esc(top[0].name)} wins` : "Game over"}</h1>
+      <p class="muted">${me ? `You finished #${me.rank} with ${me.score} points.` : ""}</p>
+      <div class="podium">${pod(top[1], "p2")}${pod(top[0], "p1")}${pod(top[2], "p3")}</div>
+      ${leaderboard(s.players, false)}
+      ${s.isHost ? `<div class="row" style="justify-content:center;margin-top:18px"><input id="again-topic" placeholder="New topic (or keep the same)" style="max-width:320px"><button class="btn big" id="again">Play again</button></div>` : `<p class="small muted" style="margin-top:16px">Waiting for the host to start a rematch. Stay on this page.</p>`}
+      <div class="err" id="ferr"></div>
+    </div>
+    <h3 style="margin-top:22px">Every rung</h3>
+    ${s.summary.map((r) => `<details><summary>${r.index + 1}. ${esc(r.prompt)} <span class="muted small">· ${esc(r.label)}</span></summary><div style="margin-top:10px">${r.answers.map((a, i) => answerCard(a, i, r.rubric)).join("")}</div></details>`).join("")}
+    <p class="center small muted" style="margin-top:20px"><a href="#" id="leave" style="color:var(--muted)">Leave room</a></p>`;
+  confetti();
+  if ($("#again")) $("#again").onclick = () => { $("#again").disabled = true; post("again", { ...session, topic: $("#again-topic").value }).then(() => { lastRanks = {}; poll(); }).catch((e) => { $("#ferr").textContent = e.message; $("#again").disabled = false; }); };
+  $("#leave").onclick = (e) => { e.preventDefault(); clearSession(); stopPolling(); history.replaceState(null, "", "/"); lastScreen = ""; renderHome(); };
+  window.scrollTo({ top: 0 });
+}
+function confetti() {
+  const c = $("#confetti"); c.innerHTML = "";
+  const colors = ["#ffcc33", "#4f8cff", "#38d996", "#ff5d6c", "#b388ff"];
+  for (let i = 0; i < 80; i++) { const el = document.createElement("i"); el.style.left = Math.random() * 100 + "vw"; el.style.background = colors[i % colors.length]; el.style.animationDuration = 2.5 + Math.random() * 2 + "s"; el.style.animationDelay = Math.random() * 1.2 + "s"; c.appendChild(el); }
+  setTimeout(() => (c.innerHTML = ""), 6000);
+}
+
+// ---------- boot ----------
+if (session) startPolling(); else renderHome();
 </script>
 </body>
 </html>

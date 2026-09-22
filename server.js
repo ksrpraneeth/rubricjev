@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { grade, validate, publicQuestions } from "./lib/grade.js";
+import { runAction, errorStatus } from "./lib/actions.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -25,6 +26,11 @@ async function readJson(req) {
 http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    const m = url.pathname.match(/^\/api\/room\/([a-z]+)$/);
+    if (m && req.method === "POST") {
+      try { return send(res, 200, await runAction(m[1], await readJson(req))); }
+      catch (err) { if (errorStatus(err) >= 500) console.error(err); return send(res, errorStatus(err), { error: err.message }); }
+    }
     if (req.method === "GET" && url.pathname === "/api/questions") return send(res, 200, publicQuestions(url.searchParams.get("set")));
     if (req.method === "POST" && url.pathname === "/api/grade") {
       const v = validate(await readJson(req));

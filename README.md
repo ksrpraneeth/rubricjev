@@ -1,30 +1,31 @@
-# Explain It Back — rubric grading with Jev
+# Ladder — multiplayer rubric quiz on Jev
 
-Pluggable sets of short-answer questions. Ships with **Everyday knowledge** (money, health, kitchen, safety, the world) and **Neural networks and LLMs**. The learner explains a concept in their own words and Jev (TypeSafe AI) grades every rubric point, checks for common misconceptions, and gives an overall level, all in one call.
+Pick any topic. OpenAI builds a ladder of questions from child-easy to expert-only. Players answer in their own words. Jev (TypeSafe AI) grades every rubric point in one call, and the best answers win.
 
-## Run
+## Modes
+- **Timed**: everyone answers the same question against a clock. Speed bonus.
+- **Untimed**: reveal when everyone has answered. Host can force it.
+- **Race**: each player climbs at their own pace, graded instantly, live leaderboard.
 
+## Scoring
+- Coverage = average rubric probability from Jev, times a rung multiplier from 1× (first) to 2× (last).
+- Speed bonus up to +25% in timed and race modes.
+- Streak bonus +10% per consecutive good answer, up to +50%.
+- A detected misconception halves the points. All rubric points above 90% with no misconception earns a flawless badge.
+
+## Run locally
 ```
 node --env-file=.env server.js
 ```
+Needs Node 20+ and a `.env` with `JEV_API_KEY` and `OPEN_AI_KEY`. Without Upstash variables it uses an in-memory store, which is fine for one process.
 
-Then open http://localhost:3000. Requires Node 20+ and a `JEV_API_KEY` in `.env`. No npm install needed.
+## Deploy
+Vercel serverless functions under `api/`, static UI under `public/`. Rooms live in Upstash Redis; set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (or the `KV_REST_API_*` pair the Vercel marketplace creates). Optional `OPENAI_MODEL` (default `gpt-5.4-mini`).
 
-## How grading works
-
-For each question the server sends Jev:
-
-- **state**: the question, the reference points, and the learner's answer
-- one **noul** per rubric point ("The learner's answer states that…")
-- one **noul** per misconception ("The learner's answer wrongly claims…")
-- one **score** question, 0–3, for the overall level
-
-Rubric points and reference answers never reach the browser.
-
-## Adding a question set
-
-1. Copy `questions/everyday.js` to `questions/<your-set>.js` and edit `id`, `title`, `description` and the questions.
-2. Register it in `questions/index.js` by adding it to the `SETS` array. The first entry is the default.
-3. Redeploy. The set appears in the picker at the top of the page, and can be linked directly with `?set=<id>`.
-
-Each question needs `id`, `topic`, `prompt`, `points` (the answer key), `rubric` (3–4 checks phrased as "The learner's answer …"), and `misconceptions` (checks that should come back no; can be empty).
+## Layout
+- `lib/generate.js` question ladder generation (OpenAI, JSON schema)
+- `lib/grade.js` Jev grading of one answer against a rubric
+- `lib/game.js` rooms, rounds, modes, scoring
+- `lib/store.js` Upstash or in-memory store
+- `api/room/[action].js` all game endpoints (`create, join, settings, start, state, typing, answer, next, again`)
+- `public/index.html` the game; `public/practice.html` solo practice with fixed sets in `questions/`
