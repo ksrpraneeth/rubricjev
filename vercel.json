@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/room/[action].js": {
-      "maxDuration": 60
+      "maxDuration": 120
     },
     "api/og.js": {
       "maxDuration": 20,

@@ -19,7 +19,7 @@ Each question has 2 or 3 key facts. Each fact earns full credit (clearly hit), h
 - `api/room/[action].js`: game actions (create, join, start, answer, ready, react, leave, kick, end, challenge, daily).
 - `api/stream.js`: live room stream. Each player holds one streamed response; the server pushes state on every change through Redis pub/sub. Clients fall back to polling only if a network blocks streaming.
 - `api/og.js` and `api/invite.js`: per-room, per-challenge and daily link previews for WhatsApp, iMessage and social apps.
-- `lib/generate.js`: question ladders (OpenAI, JSON schema, safety rules). `lib/grade.js`: key-fact grading with the TypeSafe decision model. `lib/game.js`: rooms, rounds, scoring. `lib/solo.js`: Daily and challenges. `lib/store.js`: Upstash Redis or in-memory store with pub/sub.
+- `lib/generate.js`: question ladders with GPT only (writer `gpt-6-luna`, reviewer `gpt-6-sol`; override with `OPENAI_MODEL`, `OPENAI_REVIEW_MODEL`, `OPENAI_REVIEW_EFFORT`, `PLAN_EFFORT`), JSON schema, safety rules. Grading uses the TypeSafe decision model only. `lib/grade.js`: key-fact grading with the TypeSafe decision model. `lib/game.js`: rooms, rounds, scoring. `lib/solo.js`: Daily and challenges. `lib/store.js`: Upstash Redis or in-memory store with pub/sub.
 
 ## Run locally
 ```
