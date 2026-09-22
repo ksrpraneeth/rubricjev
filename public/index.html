@@ -292,6 +292,13 @@ async function poll() {
   pollTimer = setTimeout(poll, fast ? 1000 : 1800);
 }
 function startPolling() { stopPolling(); poll(); }
+let typingTrail = null;
+function typingPing(q, len) {
+  const send = () => { lastTyping = Date.now(); post("typing", { ...session, q, len }).catch(() => {}); };
+  const t = Date.now();
+  clearTimeout(typingTrail);
+  if (t - lastTyping > 1200) send(); else typingTrail = setTimeout(send, 1200 - (t - lastTyping));
+}
 function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
 function handleEvents(s) {
   if (lastEventT == null) { lastEventT = s.serverTime; return; }
@@ -433,7 +440,7 @@ function renderPlaying() {
       dock: `<span class="note" id="note">${s.mode === "timed" ? "Speed counts" : "Reveals when everyone has answered"}</span>${s.mode === "untimed" && s.isHost ? `<button class="btn ghost sm" id="force">Reveal now</button>` : ""}<button class="btn" id="submit" ${inCount ? "disabled" : ""}>Lock in</button>`,
     });
     const ta = $("#ans");
-    ta.oninput = () => { const t = Date.now(); if (t - lastTyping > 1800) { lastTyping = t; post("typing", { ...session, q: q.index }).catch(() => {}); } };
+    ta.oninput = () => typingPing(q.index, ta.value.length);
     ta.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
     $("#submit").onclick = submit;
     if ($("#force")) $("#force").onclick = () => post("next", session).then(poll).catch((e) => toast(e.message, true));
@@ -447,7 +454,7 @@ function renderPlaying() {
   }
   if (s.myAnswer && !$("#lockedbox").classList.contains("shown")) showLocked(s.myAnswer.text);
   const waiting = s.players.filter((p) => !p.submitted && !p.away).length;
-  $("#pl").innerHTML = s.players.map((p) => `<div class="pcell" style="width:52px">${av(p, "", p.submitted ? "done" : p.typing ? "typing" : "")}<span class="nm ${p.isMe ? "me" : ""}">${esc(p.name)}</span><span class="st ${p.submitted ? "done" : p.typing ? "typing" : ""}">${p.submitted ? "locked" : p.typing ? "typing" : p.away ? "away" : ""}</span></div>`).join("");
+  $("#pl").innerHTML = s.players.map((p) => `<div class="pcell" style="width:52px">${av(p, "", p.submitted ? "done" : p.typing ? "typing" : "")}<span class="nm ${p.isMe ? "me" : ""}">${esc(p.name)}</span><span class="st ${p.submitted ? "done" : p.typing ? "typing" : ""}">${p.submitted ? "locked" : p.typing ? `typing ${p.chars}` : p.chars ? `${p.chars} chars` : p.away ? "away" : ""}</span></div>`).join("");
   if ($("#lb")) $("#lb").innerHTML = standings(s.players, false);
   if (s.myAnswer) $("#note").textContent = waiting ? `Waiting for ${waiting} player${waiting === 1 ? "" : "s"}` : "Grading";
   if (s.mode === "timed") tickTimer();
@@ -528,7 +535,7 @@ function revealNote() {
 // ---- race ----
 function renderRace() {
   const s = state, n = s.totalQuestions;
-  const lanes = `<div class="lanes">${s.players.map((p) => `<div class="lane">${av(p, "sm", p.typing ? "typing" : "")}<span style="min-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span><div class="bar"><i class="${p.isMe ? "me" : ""}" style="width:${Math.min(100, (p.progress / n) * 100)}%"></i></div><span class="muted tiny" style="min-width:36px;text-align:right">${Math.min(p.progress, n)}/${n}</span></div>`).join("")}</div>`;
+  const lanes = `<div class="lanes">${s.players.map((p) => `<div class="lane">${av(p, "sm", p.typing ? "typing" : "")}<span style="min-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span><div class="bar"><i class="${p.isMe ? "me" : ""}" style="width:${Math.min(100, (p.progress / n) * 100)}%"></i></div><span class="muted tiny" style="min-width:36px;text-align:right">${Math.min(p.progress, n)}/${n}</span>${p.chars && !p.isMe ? `<span class="tiny" style="color:var(--blue);min-width:44px;text-align:right">${p.chars} ch</span>` : ""}</div>`).join("")}</div>`;
   if (s.finishedMine) {
     if (renderedRound !== 999) { renderedRound = 999; shell({ hud: esc(s.topic), stage: `<div class="panel fill" style="gap:10px"><h2>You reached the top</h2><p class="muted small">Waiting for the others to finish.</p><div id="track"></div><div class="list" id="lb"></div></div>`, dock: `<span class="note">Final results once everyone is done</span>` }); }
     $("#track").innerHTML = lanes; $("#lb").innerHTML = standings(s.players, false); return;
@@ -552,7 +559,7 @@ function renderRace() {
     });
     if (last) $("#lastrow").onclick = () => openSheet(`Previous rung: +${last.points}`, `<p class="small muted" style="margin-bottom:8px">${esc(last.prompt)}</p>` + answerDetail(last, last.rubric, last.points_ref));
     const ta = $("#ans");
-    ta.oninput = () => { const t = Date.now(); if (t - lastTyping > 1800) { lastTyping = t; post("typing", { ...session, q: q.index }).catch(() => {}); } };
+    ta.oninput = () => typingPing(q.index, ta.value.length);
     ta.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
     $("#submit").onclick = submit;
     async function submit() {
