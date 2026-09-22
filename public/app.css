@@ -413,3 +413,8 @@ body.fit1 .mine-card .ans-text { display: -webkit-box; -webkit-box-orient: verti
 body.fit2 .mine-card .ans-text { -webkit-line-clamp: 2; }
 #lerr:empty { display: none; }
 .measuring, .measuring * { transform: none !important; }
+/* Phones held sideways: the lobby's cards sit in two columns instead of one tall stack. */
+@media (orientation: landscape) and (max-height: 540px) {
+  #lobby { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-content: start; align-items: start; }
+  .stage > .main.narrow:has(#lobby) { max-width: 980px; }
+}
