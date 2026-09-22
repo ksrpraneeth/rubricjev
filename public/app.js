@@ -12,6 +12,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lvl = (p) => (p >= 0.7 ? "pass" : p >= 0.4 ? "part" : "miss");
 const pct = (p) => Math.round((p || 0) * 100) + "%";
+const ordinal = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const ORIGIN = location.origin;
 const LS = {
@@ -1141,7 +1142,7 @@ function renderFinished() {
   shell({
     hud: hudGame({ mid: esc(s.topic) }), narrow: true,
     stage: `<div class="center"><p class="h1">${!champ || champ.score === 0 ? "Nobody scored" : top[1] && top[1].score === champ.score ? "It's a tie" : champ.isMe ? "You take the crown" : `${esc(champ.name)} takes the crown`}</p><p class="small muted">${me ? `You finished ${me.rank === 1 ? "first" : "#" + me.rank} with ${me.score} points` : ""}</p></div>
-      <div class="podium ${top.length === 1 ? "one" : top.length === 2 ? "two" : ""}">${top.length >= 2 ? pod(top[1], "p2", "2nd") : ""}${pod(top[0], "p1", "1st")}${top.length >= 3 ? pod(top[2], "p3", "3rd") : ""}</div>
+      <div class="podium ${top.length === 1 ? "one" : top.length === 2 ? "two" : ""}">${top.length >= 2 ? pod(top[1], "p2", ordinal(top[1].rank || 2)) : ""}${pod(top[0], "p1", ordinal(top[0].rank || 1))}${top.length >= 3 ? pod(top[2], "p3", ordinal(top[2].rank || 3)) : ""}</div>
       ${xp ? xpCard(xp) : ""}
       <div class="list" id="awards">${awards.map((a) => `<div class="award ${a.id === s.me.id ? "mine" : ""}"><span class="ic">${a.icon}</span><div class="grow"><p class="h3">${a.title}</p><p class="small muted">${esc(a.name)}  ·  ${esc(a.detail)}</p></div></div>`).join("")}</div>`,
     dock: `<button class="btn ghost icon" id="sharebtn" aria-label="Share your result card">${I.share}</button><button class="btn violet flex1" id="chalbtn">Challenge</button>${s.isHost ? `<button class="btn flex1" id="againbtn">Rematch</button>` : ""}`,
