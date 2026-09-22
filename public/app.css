@@ -220,7 +220,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2.5
 .banner.cold { background: rgba(255,255,255,.06); border-color: var(--line2); }
 .banner .t { font: 900 19px/1.15 Archivo; font-stretch: 105%; }
 .banner svg { width: 34px; height: 34px; color: var(--gold); flex: none; }
-.overlay { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; background: radial-gradient(circle at 50% 45%, rgba(40,20,100,.55), rgba(10,4,30,.92)); }
+.overlay { position: fixed; inset: 0; z-index: 30; display: none; pointer-events: none; place-items: center; background: radial-gradient(circle at 50% 45%, rgba(40,20,100,.55), rgba(10,4,30,.92)); }
 .overlay.on { display: grid; }
 .overlay .big { font: 900 min(44vw, 210px)/1 Archivo; font-stretch: 125%; color: var(--gold); text-shadow: 0 8px 0 #8A5A00, 0 0 60px rgba(255,200,61,.6); animation: countpop .95s cubic-bezier(.2,1.5,.4,1) both; text-align: center; }
 .overlay .big.go { color: var(--green); text-shadow: 0 8px 0 #0E7A4C, 0 0 60px rgba(53,227,154,.6); }

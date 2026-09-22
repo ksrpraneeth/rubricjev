@@ -5,7 +5,9 @@ export default async function handler(req, res) {
   const len = Number(req.headers["content-length"] || 0);
   if (len > 16000) return res.status(413).json({ error: "That was too long." });
   const key = process.env.TEST_KEY;
-  const isTest = !!key && key.length >= 24 && req.headers["x-fc-test"] === key;
+  // Test runs tag themselves with the secret test key, as a header (API bots) or a cookie (browser bots).
+  const cookieKey = (String(req.headers.cookie || "").match(/(?:^|;\s*)fc_test=([^;]+)/) || [])[1];
+  const isTest = !!key && key.length >= 24 && (req.headers["x-fc-test"] === key || cookieKey === key);
   const ip = isTest ? "test-runner" : String(req.headers["x-real-ip"] || req.headers["x-forwarded-for"] || "unknown").split(",")[0].trim();
   try {
     const body = req.body && typeof req.body === "object" ? req.body : {};

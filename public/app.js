@@ -80,13 +80,23 @@ const saveSession = (s) => { session = s; s ? LS.set("kc:session", s) : LS.del("
 // =====================================================================
 // network
 // =====================================================================
+// Mobile networks drop out. Requests give up after a while instead of hanging, and the ones that are safe
+// to repeat (the server ignores a duplicate answer or ready) retry on their own before telling the player.
+const RETRIES = { answer: 3, soloanswer: 3, ready: 2, next: 2, state: 1, solostate: 2 };
+const SLOW = { prepare: 130000, start: 130000, again: 130000, create: 30000, soloanswer: 30000, answer: 30000, solostate: 60000 };
 async function api(action, body) {
-  let r;
-  try { r = await fetch(`/api/room/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) }); }
-  catch { const e = new Error("You look offline. Check your connection."); e.status = 0; throw e; }
-  let d = {}; try { d = await r.json(); } catch {}
-  if (!r.ok) { const e = new Error(d.error || "Something went wrong. Try again."); e.status = r.status; throw e; }
-  return d;
+  const tries = RETRIES[action] || 0;
+  for (let attempt = 0; ; attempt++) {
+    let r;
+    const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), SLOW[action] || 15000);
+    try { r = await fetch(`/api/room/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}), signal: ctrl.signal }); }
+    catch { clearTimeout(timer); if (attempt < tries) { await sleep(800 * (attempt + 1)); continue; } const e = new Error("You look offline. Check your connection."); e.status = 0; throw e; }
+    clearTimeout(timer);
+    let d = {}; try { d = await r.json(); } catch {}
+    if (r.status >= 502 && attempt < tries) { await sleep(800 * (attempt + 1)); continue; }
+    if (!r.ok) { const e = new Error(d.error || "Something went wrong. Try again."); e.status = r.status; throw e; }
+    return d;
+  }
 }
 function loadScript(src) {
   return new Promise((res, rej) => { if ($(`script[src="${src}"]`)) return res(); const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
@@ -622,6 +632,7 @@ function onStreamChunk(chunk) {
 }
 function applyTyping(d) {
   if (!state || !state.me || d.pid === state.me.id) return;
+  if (state.mode !== "race" && state.question && d.q !== state.question.index) return; // a late update from an earlier round
   const p = state.players.find((x) => x.id === d.pid); if (!p || p.submitted) return;
   p.typing = true; p.chars = d.len;
   clearTimeout(p._tt); p._tt = setTimeout(() => { p.typing = false; if (state && ["playing"].includes(state.status)) render(); }, 3500);
@@ -819,7 +830,7 @@ function renderPlaying() {
     const submit = async () => {
       const text = ($("#ans")?.value || "").trim();
       if (!text) { toast("Type your answer first", "bad"); return $("#ans")?.focus(); }
-      const btn = $("#lockbtn"); btn.disabled = true;
+      const btn = $("#lockbtn"); btn.disabled = true; clearTimeout(typingTrail);
       showLocked(text, boostArmed); Sound.lock(); if (boostArmed) popAt($("#lockedbox"), "2×");
       document.activeElement?.blur();
       try { await api("answer", { ...session, q: q.index, text, double: boostArmed }); refresh(); }
@@ -1024,7 +1035,7 @@ function renderRace() {
     const submit = async () => {
       const text = ($("#ans")?.value || "").trim();
       if (!text) { toast("Type your answer first", "bad"); return $("#ans")?.focus(); }
-      const btn = $("#lockbtn"); btn.disabled = true; btn.innerHTML = `<span class="spin"></span>Checking`; Sound.lock();
+      const btn = $("#lockbtn"); btn.disabled = true; btn.innerHTML = `<span class="spin"></span>Checking`; Sound.lock(); clearTimeout(typingTrail);
       document.activeElement?.blur();
       try {
         const r = await api("answer", { ...session, q: q.index, text, double: boostArmed });
@@ -1311,7 +1322,11 @@ function soloQuestion() {
     try {
       const r = await api("soloanswer", { kind: solo.kind, ref: solo.ref, device: profile.device, token: solo.token, q: q.index, text, double: boostArmed });
       soloResult(r, q);
-    } catch (e) { toast(e.message, "bad"); btn.disabled = false; btn.textContent = "Lock in"; }
+    } catch (e) {
+      // The answer may have landed even though the reply was lost: resync and carry on instead of getting stuck.
+      if (e.status === 400 && /current question|already finished/i.test(e.message)) { try { const d = await soloFetch(false); return d.me.finished ? soloEnd() : soloQuestion(); } catch {} }
+      toast(e.message, "bad"); btn.disabled = false; btn.textContent = "Lock in";
+    }
   };
   bindAnswer(q.index, submit); bindBoost(!d.me.doubleUsed);
   $("#lockbtn").onclick = submit;
