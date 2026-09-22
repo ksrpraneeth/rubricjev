@@ -325,6 +325,7 @@ function route() {
 }
 function navigate(path, replace = false) {
   stopCurrent(); stopCurrent = () => {};
+  if (!/^\/r\//.test(path)) state = null;
   closeSheet(); closeTray(); $("#overlay").classList.remove("on");
   if (path !== location.pathname + location.search) history[replace ? "replaceState" : "pushState"](null, "", path);
   boot();
@@ -610,6 +611,7 @@ function showEvent(e, s = state) {
 }
 function render() {
   const s = state;
+  if (!s || !session || s.code !== session.code) return; // left the room: ignore late timers and replies
   const key = `${s.status}:${s.mode}:${s.isHost ? "h" : "p"}:${s.games}`;
   if (key !== screenKey) { screenKey = key; roundKey = -1; closeTray(); if (!["reveal", "playing"].includes(s.status)) closeSheet(); }
   if (s.status === "lobby") return renderLobby();
@@ -652,7 +654,8 @@ function renderLobby() {
     $("#pcount").textContent = `${s.players.length} of 12`;
     $("#ltopic").textContent = s.topic; $("#lmode").textContent = modeLine;
     $("#lerr").textContent = s.error || "";
-    if ($("#startbtn")) $("#startbtn").textContent = s.players.length > 1 ? `Start with ${s.players.length} players` : "Start solo";
+    if ($("#startbtn") && !$("#startbtn").disabled) $("#startbtn").textContent = s.players.length > 1 ? `Start with ${s.players.length} players` : "Start solo";
+    prepNote(s);
     return;
   }
   shell({
@@ -662,11 +665,13 @@ function renderLobby() {
         <p class="center small muted" style="margin:2px 0 10px">Send this to your friends. They join in seconds.</p>${shareButtons()}</div>
       <div class="card"><div class="rowf" style="margin-bottom:12px"><p class="h3 grow">Players</p><span class="small muted" id="pcount">${s.players.length} of 12</span></div><div class="pgrid" id="pgrid">${cells}</div></div>
       <div class="card tight hide-kb"><div class="mini"><div class="li"><span class="ic">${I.target}</span><span>Each question has <b>3 key points</b>. Hit them in your own words.</span></div><div class="li"><span class="ic">${I.bolt}</span><span><b>Faster</b> answers and <b>streaks</b> score more. One <b>2× boost</b> per game.</span></div></div></div>
-      <div class="card tight"><div class="rowf"><div class="grow"><p class="h3" id="ltopic">${esc(s.topic)}</p><p class="small muted" id="lmode">${modeLine}</p></div>${s.isHost ? `<button class="btn xs ghost" id="editbtn">Change</button>` : ""}</div><p class="err" id="lerr">${esc(s.error || "")}</p></div>
+      <div class="card tight"><div class="rowf"><div class="grow"><p class="h3" id="ltopic">${esc(s.topic)}</p><p class="small muted" id="lmode">${modeLine}</p></div>${s.isHost ? `<button class="btn xs ghost" id="editbtn">Change</button>` : ""}</div><p class="err" id="lerr">${esc(s.error || "")}</p>${s.isHost ? `<p class="tiny" id="prepnote" style="margin-top:4px"></p>` : ""}</div>
     </div>`,
     dock: `<button class="btn ghost sm" id="reactbtn" aria-label="React">${I.smile}</button>${s.isHost ? `<button class="btn flex1" id="startbtn">${s.players.length > 1 ? `Start with ${s.players.length} players` : "Start solo"}</button>` : `<p class="note">Waiting for ${esc(s.players.find((p) => p.isHost)?.name || "the host")} to start. Invite more friends while you wait.</p>`}`,
   });
   bindShare("sh", inviteText, roomLink);
+  prepNote(s);
+  if (s.isHost && !s.prep) prepareQuestions();
   $("#codebtn").onclick = () => copyText(`${inviteText()} ${roomLink()}`, "Invite copied. Paste it in your group.");
   $("#reactbtn").onclick = () => openTray((r) => { api("react", { ...session, text: r }).catch(() => {}); });
   if (s.isHost) {
@@ -676,6 +681,14 @@ function renderLobby() {
       try { await api("start", session); refresh(); } catch (e) { $("#lerr").textContent = e.message; $("#startbtn").disabled = false; $("#startbtn").textContent = "Start game"; }
     };
   }
+}
+// The host's lobby asks the server to write questions in the background, so Start is instant.
+let prepAsked = 0;
+function prepareQuestions() { if (Date.now() - prepAsked < 3000) return; prepAsked = Date.now(); api("prepare", session).catch(() => {}); }
+function prepNote(s) {
+  const el = $("#prepnote"); if (!el || !s.isHost) return;
+  el.textContent = s.prep === "ready" ? "Questions ready. Start whenever your crew is in." : s.prep === "pending" ? "Writing your questions in the background..." : s.prep === "rejected" ? "" : "";
+  el.style.color = s.prep === "ready" ? "var(--green)" : "var(--muted)";
 }
 function settingsSheet() {
   const s = state; let mode = s.mode, n = s.numQuestions, sec = s.secondsPerQ;
@@ -690,7 +703,7 @@ function settingsSheet() {
   $("#snstep").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; n = clamp(n + Number(b.dataset.d), 3, 20); $("#snout").textContent = n; };
   $("#ssstep").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; sec = clamp(sec + Number(b.dataset.d), 15, 120); $("#ssout").textContent = sec; };
   $("#ssave").onclick = async () => {
-    try { await api("settings", { ...session, topic: $("#stopic").value, mode, numQuestions: n, secondsPerQ: sec }); closeSheet(); refresh(); toast("Settings saved", "good"); }
+    try { await api("settings", { ...session, topic: $("#stopic").value, mode, numQuestions: n, secondsPerQ: sec }); closeSheet(); refresh(); toast("Settings saved", "good"); prepAsked = 0; prepareQuestions(); }
     catch (e) { $("#serr").textContent = e.message; }
   };
 }
@@ -1082,7 +1095,7 @@ function rematchSheet() {
   const s = state;
   openSheet("Rematch", `<p class="muted" style="margin-bottom:14px">Same players, fresh questions. Scores reset. Keep the topic or try a new one.</p><div class="topicrow"><input class="field" id="rtopic" maxlength="60" value="${esc(s.topic)}" aria-label="Topic"><button class="ib dice" id="rdice" aria-label="Surprise me">${I.dice}</button></div><p class="err" id="rerr" style="margin-top:8px"></p>`, `<button class="btn wide" id="rgo">Back to lobby</button>`);
   bindDice($("#rdice"), $("#rtopic"));
-  $("#rgo").onclick = async () => { $("#rgo").disabled = true; try { await api("again", { ...session, topic: $("#rtopic").value }); lastRanks = {}; closeSheet(); refresh(); } catch (e) { $("#rerr").textContent = e.message; $("#rgo").disabled = false; } };
+  $("#rgo").onclick = async () => { $("#rgo").disabled = true; try { await api("again", { ...session, topic: $("#rtopic").value }); lastRanks = {}; closeSheet(); refresh(); prepAsked = 0; prepareQuestions(); } catch (e) { $("#rerr").textContent = e.message; $("#rgo").disabled = false; } };
 }
 function reviewSheet(i = 0) {
   const s = state, r = s.summary[i];
