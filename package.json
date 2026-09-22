@@ -1,0 +1,8 @@
+{
+  "name": "jev-rubric-grader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env server.js"
+  }
+}

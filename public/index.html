@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explain It Back</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #2f5bea; --pass: #15803d; --pass-bg: #dcfce7; --part: #b45309; --part-bg: #fef3c7;
+    --miss: #b91c1c; --miss-bg: #fee2e2; --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --panel: #171a21; --ink: #e8eaf0; --muted: #9aa3b2; --line: #2a2f3a;
+      --pass-bg: #113322; --part-bg: #3a2a08; --miss-bg: #3b1212; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  header { padding: 18px 24px; border-bottom: 1px solid var(--line); background: var(--panel); display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  header .stats { margin-left: auto; color: var(--muted); font-size: 13px; }
+  header select { font: inherit; font-size: 13.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 60px); }
+  nav { border-right: 1px solid var(--line); background: var(--panel); padding: 14px 10px; overflow-y: auto; }
+  nav h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 10px 6px; }
+  nav button { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 8px; color: var(--ink); cursor: pointer; font: inherit; font-size: 13.5px; line-height: 1.35; }
+  nav button:hover { background: var(--bg); }
+  nav button.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; border: 1.5px solid var(--line); }
+  .dot.pass { background: var(--pass); border-color: var(--pass); }
+  .dot.part { background: var(--part); border-color: var(--part); }
+  .dot.miss { background: var(--miss); border-color: var(--miss); }
+  main { padding: 28px; max-width: 860px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; margin-bottom: 18px; }
+  .topic { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+  .prompt { font-size: 21px; font-weight: 600; margin: 0 0 14px; line-height: 1.3; }
+  textarea { width: 100%; min-height: 160px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; resize: vertical; }
+  textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .btn { background: var(--accent); color: #fff; border: 0; padding: 10px 18px; border-radius: 9px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .55; cursor: wait; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .err { color: var(--miss); font-size: 13px; }
+  .verdict { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .badge { font-weight: 700; padding: 6px 12px; border-radius: 999px; font-size: 14px; }
+  .badge.pass { background: var(--pass-bg); color: var(--pass); }
+  .badge.part { background: var(--part-bg); color: var(--part); }
+  .badge.miss { background: var(--miss-bg); color: var(--miss); }
+  .meta { color: var(--muted); font-size: 12.5px; }
+  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  .crit { display: grid; grid-template-columns: 22px 1fr 110px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .crit:first-of-type { border-top: 0; }
+  .mark { font-weight: 700; text-align: center; }
+  .mark.pass { color: var(--pass); } .mark.part { color: var(--part); } .mark.miss { color: var(--miss); }
+  .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; }
+  .bar.pass i { background: var(--pass); } .bar.part i { background: var(--part); } .bar.miss i { background: var(--miss); }
+  .dist { display: flex; gap: 6px; margin-top: 8px; }
+  .dist span { flex: 1; font-size: 11.5px; color: var(--muted); text-align: center; }
+  .dist b { display: block; height: 6px; background: var(--line); border-radius: 3px; margin-bottom: 4px; overflow: hidden; }
+  .dist b i { display: block; height: 100%; background: var(--accent); }
+  .empty { color: var(--muted); }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+    nav { border-right: 0; border-bottom: 1px solid var(--line); max-height: 40vh; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Explain It Back</h1>
+  <select id="set" title="Question set"></select>
+  <span class="sub" id="setdesc">Answer in your own words. Jev grades each rubric point in one call.</span>
+  <span class="stats" id="stats"></span>
+</header>
+<div class="layout">
+  <nav id="nav"></nav>
+  <main>
+    <div class="card">
+      <div class="topic" id="topic"></div>
+      <p class="prompt" id="prompt"></p>
+      <textarea id="answer" placeholder="Explain it as if to a colleague. Two to five sentences is plenty."></textarea>
+      <div class="row">
+        <button class="btn" id="grade">Grade my answer</button>
+        <button class="btn ghost" id="next">Next question</button>
+        <span class="hint" id="hint">Ctrl/Cmd + Enter to grade</span>
+        <span class="err" id="err"></span>
+      </div>
+    </div>
+    <div class="card" id="result"><p class="empty">Your rubric breakdown will appear here.</p></div>
+  </main>
+</div>
+<script>
+const PASS = 0.7, PART = 0.4;
+let questions = [], current = null, currentSet = null;
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem("eib:" + currentSet) || "{}"); } catch { return {}; } },
+  set(v) { try { localStorage.setItem("eib:" + currentSet, JSON.stringify(v)); } catch {} },
+};
+const $ = (id) => document.getElementById(id);
+const level = (p) => p >= PASS ? "pass" : p >= PART ? "part" : "miss";
+const pct = (p) => Math.round(p * 100) + "%";
+
+function verdictOf(r) {
+  const s = r.overall.score ?? 0;
+  return s >= 2.5 ? ["pass", "Excellent"] : s >= 1.5 ? ["pass", "Good"] : s >= 0.75 ? ["part", "Partial"] : ["miss", "Missing"];
+}
+
+function renderNav() {
+  const saved = store.get();
+  const topics = [...new Set(questions.map((q) => q.topic))];
+  $("nav").innerHTML = topics.map((t) => `<h2>${t}</h2>` + questions.filter((q) => q.topic === t).map((q) => {
+    const r = saved[q.id]?.result;
+    const cls = r ? verdictOf(r)[0] : "";
+    return `<button data-id="${q.id}" class="${q.id === current?.id ? "active" : ""}"><span class="dot ${cls}"></span><span>${q.prompt}</span></button>`;
+  }).join("")).join("");
+  $("nav").querySelectorAll("button").forEach((b) => b.onclick = () => select(b.dataset.id));
+  const graded = questions.filter((q) => saved[q.id]?.result).length;
+  const good = questions.filter((q) => saved[q.id]?.result && verdictOf(saved[q.id].result)[0] === "pass").length;
+  $("stats").textContent = `${graded}/${questions.length} graded · ${good} good or better`;
+}
+
+function select(id) {
+  current = questions.find((q) => q.id === id);
+  const saved = store.get()[id] || {};
+  $("topic").textContent = current.topic;
+  $("prompt").textContent = current.prompt;
+  $("answer").value = saved.answer || "";
+  $("err").textContent = "";
+  saved.result ? renderResult(saved.result) : ($("result").innerHTML = '<p class="empty">Your rubric breakdown will appear here.</p>');
+  renderNav();
+  $("answer").focus();
+}
+
+function renderResult(r) {
+  const [vcls, vtext] = verdictOf(r);
+  const conf = r.overall.confidence != null ? ` · confidence ${pct(r.overall.confidence)}` : "";
+  const crit = r.criteria.map((c) => {
+    const l = level(c.p);
+    const mark = l === "pass" ? "✓" : l === "part" ? "~" : "✗";
+    return `<div class="crit"><span class="mark ${l}">${mark}</span><span>${c.text}</span><div class="bar ${l}"><i style="width:${pct(c.p)}"></i></div></div>`;
+  }).join("");
+  const mis = r.misconceptions.length ? r.misconceptions.map((m) => {
+    const fired = m.p >= 0.5;
+    return `<div class="crit"><span class="mark ${fired ? "miss" : "pass"}">${fired ? "!" : "✓"}</span><span>${fired ? "Detected: " : "Not present: "}${m.text}</span><div class="bar ${fired ? "miss" : "pass"}"><i style="width:${pct(m.p)}"></i></div></div>`;
+  }).join("") : "";
+  const probs = r.overall.probabilities ? `<div class="dist">${Object.entries(r.overall.probabilities).map(([k, v]) =>
+    `<span><b><i style="width:${pct(v)}"></i></b>${["Missing", "Partial", "Good", "Excellent"][k]} ${pct(v)}</span>`).join("")}</div>` : "";
+  $("result").innerHTML = `
+    <div class="verdict"><span class="badge ${vcls}">${vtext}</span>
+      <span class="meta">Overall ${r.overall.score?.toFixed(2)} / 3${conf} · ${r.latency_ms} ms · ${r.usage?.input_tokens ?? "?"} in / ${r.usage?.output_tokens ?? "?"} out tokens · ${r.model}</span></div>
+    ${probs}
+    <h3>Rubric points</h3>${crit}
+    ${mis ? `<h3>Misconception checks</h3>${mis}` : ""}
+    <p class="hint">Bars show Jev's probability that your answer covers each point. Green ≥ 70%, amber 40–70%, red below.</p>`;
+}
+
+async function gradeNow() {
+  const answer = $("answer").value.trim();
+  $("err").textContent = "";
+  if (answer.length < 10) { $("err").textContent = "Write at least a sentence first."; return; }
+  $("grade").disabled = true; $("grade").textContent = "Grading…";
+  try {
+    const res = await fetch("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ set: currentSet, id: current.id, answer }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    const saved = store.get(); saved[current.id] = { answer, result: data }; store.set(saved);
+    renderResult(data); renderNav();
+  } catch (e) {
+    $("err").textContent = e.message;
+  } finally {
+    $("grade").disabled = false; $("grade").textContent = "Grade my answer";
+  }
+}
+
+$("grade").onclick = gradeNow;
+$("next").onclick = () => { const i = questions.findIndex((q) => q.id === current.id); select(questions[(i + 1) % questions.length].id); };
+$("answer").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") gradeNow(); });
+$("answer").addEventListener("input", () => { const s = store.get(); s[current.id] = { ...(s[current.id] || {}), answer: $("answer").value }; store.set(s); });
+
+async function loadSet(setId) {
+  const data = await fetch("/api/questions" + (setId ? "?set=" + encodeURIComponent(setId) : "")).then((r) => r.json());
+  currentSet = data.set.id;
+  questions = data.questions;
+  $("setdesc").textContent = data.set.description;
+  const sel = $("set");
+  sel.innerHTML = data.sets.map((s) => `<option value="${s.id}" ${s.id === currentSet ? "selected" : ""}>${s.title} (${s.count})</option>`).join("");
+  try { localStorage.setItem("eib:lastSet", currentSet); } catch {}
+  select(questions[0].id);
+}
+$("set").onchange = (e) => loadSet(e.target.value);
+let lastSet = null; try { lastSet = localStorage.getItem("eib:lastSet"); } catch {}
+loadSet(new URLSearchParams(location.search).get("set") || lastSet);
+</script>
+</body>
+</html>
