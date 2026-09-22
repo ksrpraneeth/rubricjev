@@ -14,6 +14,9 @@
     "api/stream.js": {
       "maxDuration": 300
     },
+    "api/cron-daily.js": {
+      "maxDuration": 120
+    },
     "api/*.js": {
       "maxDuration": 30
     }
@@ -75,6 +78,12 @@
           "value": "no-cache"
         }
       ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron-daily",
+      "schedule": "0 17 * * *"
     }
   ]
 }
