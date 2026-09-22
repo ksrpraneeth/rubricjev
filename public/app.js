@@ -219,12 +219,17 @@ let baseH = vv ? vv.height : window.innerHeight;
 // trying a slight scale-down at each step, and only on the tiniest screens let the middle scroll (fit5).
 const FITS = ["fit1", "fit2", "fit3", "fit4", "fit5"];
 const MIN_ZOOM = 0.72;
-let fitQueued = false;
+let fitQueued = false, fitMain = null, fitSig = "";
 function fitStage() {
   fitQueued = false;
   const m = $("#main"); if (!m) return;
   // Measure the settled layout: entrance animations slide content, which would count as overflow.
-  m.classList.add("measuring"); fitSteps(m); m.classList.remove("measuring");
+  m.classList.add("measuring");
+  // Typing indicators and timers change text many times a second; only refit when a block changed size.
+  const blocks = [...m.children].flatMap((k) => (getComputedStyle(k).display === "contents" ? [...k.children] : [k]));
+  const sig = () => `${m.clientHeight}|${m.scrollHeight}|${blocks.map((k) => k.offsetHeight).join(",")}`;
+  if (m !== fitMain || sig() !== fitSig) { fitSteps(m); fitMain = m; fitSig = sig(); }
+  m.classList.remove("measuring");
   $$(".list", m).forEach(moreHint);
 }
 function fitSteps(m) {
