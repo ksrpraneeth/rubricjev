@@ -6,7 +6,7 @@ Pick any topic, invite friends with a link, and everyone types the key facts. Qu
 
 ## Modes
 - **Classic**: same question for everyone against the clock, 3-2-1 countdown, speed bonus.
-- **Chill**: no clock. The round reveals once everyone has answered. Once half the room has answered, or 90 seconds after the first answer lands, the rest get a 30-second last call, so idle players never stall a game. The host can also tap Reveal.
+- **Chill**: no clock. The round reveals once everyone has answered. Once half the room has answered, or once anyone has answered and the question has been open 90 seconds, the rest get a 30-second last call, so idle players never stall a game. The host can also tap Reveal.
 - **Race**: everyone climbs at their own pace with live lanes.
 - **Daily Clash**: one topic a day, same questions for everyone, global leaderboard, streaks and a spoiler-free share grid.
 - **Challenge links**: anyone can replay a finished game's questions and land on its leaderboard.
