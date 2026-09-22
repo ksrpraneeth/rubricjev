@@ -1,3 +1,4 @@
+import "../lib/quiet.js";
 import { renderInvite } from "../lib/invite.js";
 import { SECURITY_HEADERS } from "../lib/headers.js";
 export default async function handler(req, res) {

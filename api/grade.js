@@ -1,3 +1,4 @@
+import "../lib/quiet.js";
 import { grade, validate } from "../lib/grade.js";
 import { store } from "../lib/store.js";
 export default async function handler(req, res) {

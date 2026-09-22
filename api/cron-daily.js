@@ -1,3 +1,4 @@
+import "../lib/quiet.js";
 import { ensureDailies } from "../lib/solo.js";
 // Vercel Cron calls this nightly with "Authorization: Bearer <CRON_SECRET>".
 export default async function handler(req, res) {

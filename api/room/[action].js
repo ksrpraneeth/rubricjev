@@ -1,3 +1,4 @@
+import "../../lib/quiet.js";
 import { runAction, errorStatus } from "../../lib/actions.js";
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");

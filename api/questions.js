@@ -1,3 +1,4 @@
+import "../lib/quiet.js";
 import { publicQuestions } from "../lib/grade.js";
 export default function handler(req, res) {
   res.setHeader("Cache-Control", "public, max-age=300");

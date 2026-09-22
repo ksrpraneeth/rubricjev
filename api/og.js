@@ -1,3 +1,4 @@
+import "../lib/quiet.js";
 import { renderOg } from "../lib/og.js";
 export default async function handler(req, res) {
   try {
