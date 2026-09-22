@@ -385,3 +385,29 @@ body.kb .rounds { display: none; }
 .keys { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--muted); }
 .keys i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,200,61,.35); box-shadow: 0 0 0 1.5px var(--gold); }
 body.kb .keys { margin-top: 4px; }
+
+/* Fit: cards keep their natural height so nothing can overlap; body.fit1..fit4 compact a screen that is taller than the phone. */
+.stage > .main > .card:not(.fill):not(:has(.list)), #lobby > .card { flex-shrink: 0; }
+.lobbyp .phead { margin-bottom: 12px; }
+.sharegrid { margin-top: 2px; }
+body.fit1 .stage > .main { gap: 8px; }
+body.fit1 .card.tight { padding: 10px 12px; }
+body.fit1 .card { padding: 12px 14px; }
+body.fit1 .bigcode { font-size: 50px; }
+body.fit1 .sharegrid .btn { height: 50px; font-size: 11.5px; gap: 2px; }
+body.fit1 .fit-hide1, body.fit2 .fit-hide2, body.fit3 .fit-hide3 { display: none !important; }
+body.fit2 .lobbyp .phead { margin-bottom: 8px; }
+body.fit2 .pgrid { gap: 8px 6px; }
+body.fit3 .bigcode { font-size: 40px; }
+body.fit3 .bulbs { display: none; }
+body.fit3 .sharegrid .btn { height: 42px; font-size: 0; gap: 0; }
+body.fit3 .pcell { width: 50px; gap: 3px; }
+body.fit3 .pcell .disc.lg { width: 42px; height: 42px; font-size: 14px; }
+body.fit3 .pcell .nm { font-size: 11.5px; max-width: 50px; }
+body.fit3 .pcell .st { height: 12px; font-size: 10px; }
+/* Last resort on very small screens: the stage scrolls inside itself rather than overlapping. */
+body.fit4 .stage > .main { overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
+body.fit4 .stage > .main::-webkit-scrollbar { display: none; }
+.list.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 30px), transparent); mask-image: linear-gradient(#000 calc(100% - 30px), transparent); }
+body.fit1 .mine-card .ans-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+body.fit2 .mine-card .ans-text { -webkit-line-clamp: 2; }

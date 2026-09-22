@@ -204,6 +204,38 @@ document.addEventListener("keydown", unlockAudio);
 // =====================================================================
 const vv = window.visualViewport;
 let baseH = vv ? vv.height : window.innerHeight;
+// Every screen must fit the phone with nothing overlapping. When the content is taller than the stage
+// (short phones, browser toolbars, many players): tighten spacing and drop extras (fit1-fit3), then scale
+// the screen down smoothly, and only on the tiniest screens let the middle scroll (fit4).
+const FITS = ["fit1", "fit2", "fit3", "fit4"];
+const MIN_ZOOM = 0.72;
+let fitQueued = false;
+function fitStage() {
+  fitQueued = false;
+  const m = $("#main"); if (!m) return;
+  fitSteps(m);
+  $$(".list", m).forEach(moreHint);
+}
+function fitSteps(m) {
+  const kids = [...m.children], body = document.body.classList;
+  const over = () => m.scrollHeight > m.clientHeight + 4; // lists use a -2px margin, so allow a few pixels
+  const zoom = (z) => kids.forEach((k) => (k.style.zoom = z === 1 ? "" : z.toFixed(3)));
+  const shrink = (floor) => { for (let i = 0, z = 1; i < 3 && over() && z > floor; i++) { z = Math.max(floor, z * (m.clientHeight / m.scrollHeight) - 0.005); zoom(z); } };
+  body.remove(...FITS); zoom(1);
+  if (!over()) return;
+  body.add("fit1"); if (!over()) return;
+  shrink(0.86); if (!over()) return; // a slight scale-down keeps everything on screen
+  zoom(1); body.add("fit2"); if (!over()) return;
+  body.add("fit3"); if (!over()) return;
+  shrink(MIN_ZOOM); if (over()) body.add("fit4");
+}
+// A soft fade at the bottom of a list that has more to scroll.
+function moreHint(l) { l.classList.toggle("more", l.scrollHeight > l.clientHeight + 2 && l.scrollTop + l.clientHeight < l.scrollHeight - 4); }
+document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("list")) moreHint(e.target); }, true);
+function queueFit() { if (!fitQueued) { fitQueued = true; requestAnimationFrame(fitStage); } }
+new MutationObserver(queueFit).observe($("#stage"), { childList: true, subtree: true });
+// Web fonts change text size after the first paint, so fit again once they load.
+document.fonts?.ready.then(queueFit); document.fonts?.addEventListener?.("loadingdone", queueFit);
 function syncViewport() {
   const h = vv ? vv.height : window.innerHeight;
   const top = vv ? vv.offsetTop : 0;
@@ -213,6 +245,7 @@ function syncViewport() {
   document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
   $("#app").style.transform = top > 0 ? `translateY(${Math.round(top)}px)` : "";
   document.body.classList.toggle("kb", typing && h < baseH - 140);
+  queueFit();
 }
 vv?.addEventListener("resize", syncViewport);
 vv?.addEventListener("scroll", syncViewport);
@@ -259,7 +292,16 @@ function openSheet(title, body, foot = "", onClose = null) {
 }
 function closeSheet() { $("#sheet").classList.remove("on"); $("#sheetbg").classList.remove("on"); const f = sheetOnClose; sheetOnClose = null; f?.(); }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSheet(); closeTray(); } });
-function toast(msg, kind = "") { const t = document.createElement("div"); t.className = `toast ${kind}`; t.textContent = msg; $("#toasts").appendChild(t); setTimeout(() => t.remove(), 2600); while ($("#toasts").children.length > 3) $("#toasts").firstChild.remove(); }
+// At most two notices show at once. Notices with a group (like joins) merge into one: "Asha, Ben and 3 more joined".
+function toast(msg, kind = "", group = null) {
+  const box = $("#toasts");
+  let t = group && [...box.children].find((x) => x.dataset.g === group);
+  if (t) { t.names.push(msg); clearTimeout(t.timer); t.textContent = group === "join" ? joinLine(t.names) : msg; }
+  else { t = document.createElement("div"); t.className = `toast ${kind}`; t.names = [msg]; if (group) t.dataset.g = group; t.textContent = group === "join" ? joinLine(t.names) : msg; box.appendChild(t); }
+  t.timer = setTimeout(() => t.remove(), 2600);
+  while (box.children.length > 2) box.firstChild.remove();
+}
+const joinLine = (names) => names.length === 1 ? `${names[0]} joined` : names.length === 2 ? `${names[0]} and ${names[1]} joined` : `${names[0]}, ${names[1]} and ${names.length - 2} more joined`;
 function popAt(el, text, zero) {
   const r = (el || $("#stage")).getBoundingClientRect();
   const p = document.createElement("div"); p.className = `pop ${zero ? "zero" : ""}`; p.textContent = text;
@@ -461,7 +503,7 @@ function hostScreen(prefill = "") {
       LS.set("kc:lastmode", mode); LS.set("kc:lastn", n); LS.set("kc:lastsec", sec);
       const r = await api("create", { name, topic, mode, numQuestions: n, secondsPerQ: sec, level: myLevel() });
       saveSession(r); Sound.go(); navigate(`/r/${r.code}`);
-    } catch (e) { $("#herr").textContent = e.message; $("#create").disabled = false; $("#create").textContent = "Create room"; }
+    } catch (e) { if ($("#herr")) $("#herr").textContent = e.message; if ($("#create")) { $("#create").disabled = false; $("#create").textContent = "Create room"; } }
   };
   (profile.name ? $("#topic") : $("#nm")).focus();
 }
@@ -482,7 +524,7 @@ function joinScreen(code = "", invite = null) {
     if (!/^[A-Z0-9]{4}$/.test(c)) { $("#jerr").textContent = "Room codes are 4 letters."; return $("#code").focus(); }
     $("#join").disabled = true; $("#join").innerHTML = `<span class="spin"></span>Joining`;
     try { const r = await api("join", { name, code: c, level: myLevel() }); saveSession(r); Sound.go(); navigate(`/r/${r.code}`); }
-    catch (e) { $("#jerr").textContent = e.message; $("#join").disabled = false; $("#join").textContent = "Join room"; }
+    catch (e) { if ($("#jerr")) $("#jerr").textContent = e.message; if ($("#join")) { $("#join").disabled = false; $("#join").textContent = "Join room"; } }
   };
   $("#join").onclick = go;
   $("#code").addEventListener("input", (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); if (e.target.value.length === 4 && profile.name) go(); });
@@ -606,7 +648,8 @@ function handleEvents(s) {
 function showEvent(e, s = state) {
   if (e.type === "react") { bubble(e.name, e.avatar, e.reaction); Sound.pop(); return; }
   if (!s?.me || e.playerId === s.me.id || e.type === "start" || e.type === "again") return;
-  toast(e.text, e.type === "kick" || e.type === "end" ? "bad" : "");
+  if (e.type === "join" && e.name) toast(e.name, "", "join");
+  else toast(e.text, e.type === "kick" || e.type === "end" ? "bad" : "");
   if (e.type === "join") Sound.join(); else if (e.type === "leave" || e.type === "kick") Sound.leave(); else Sound.click();
 }
 function render() {
@@ -661,10 +704,10 @@ function renderLobby() {
   shell({
     hud: hudGame({ mid: "Lobby" }), narrow: true,
     stage: `<div id="lobby" style="display:contents">
-      <div class="card tight"><div class="bulbs chase"></div><p class="small muted center">Room code</p><button class="bigcode" id="codebtn" aria-label="Copy invite link">${s.code}</button>
-        <p class="center small muted" style="margin:2px 0 10px">Send this to your friends. They join in seconds.</p>${shareButtons()}</div>
-      <div class="card"><div class="rowf" style="margin-bottom:12px"><p class="h3 grow">Players</p><span class="small muted" id="pcount">${s.players.length} of 12</span></div><div class="pgrid" id="pgrid">${cells}</div></div>
-      <div class="card tight hide-kb"><div class="mini"><div class="li"><span class="ic">${I.target}</span><span>Each question has <b>3 key points</b>. Hit them in your own words.</span></div><div class="li"><span class="ic">${I.bolt}</span><span><b>Faster</b> answers and <b>streaks</b> score more. One <b>2× boost</b> per game.</span></div></div></div>
+      <div class="card tight"><div class="bulbs chase"></div><p class="small muted center fit-hide3">Room code</p><button class="bigcode" id="codebtn" aria-label="Copy invite link">${s.code}</button>
+        <p class="center small muted fit-hide1" style="margin:2px 0 10px">Send this to your friends. They join in seconds.</p>${shareButtons()}</div>
+      <div class="card lobbyp"><div class="rowf phead"><p class="h3 grow">Players</p><span class="small muted" id="pcount">${s.players.length} of 12</span></div><div class="pgrid" id="pgrid">${cells}</div></div>
+      <div class="card tight hide-kb fit-hide2"><div class="mini"><div class="li"><span class="ic">${I.target}</span><span>Each question has <b>3 key points</b>. Hit them in your own words.</span></div><div class="li"><span class="ic">${I.bolt}</span><span><b>Faster</b> answers and <b>streaks</b> score more. One <b>2× boost</b> per game.</span></div></div></div>
       <div class="card tight"><div class="rowf"><div class="grow"><p class="h3" id="ltopic">${esc(s.topic)}</p><p class="small muted" id="lmode">${modeLine}</p></div>${s.isHost ? `<button class="btn xs ghost" id="editbtn">Change</button>` : ""}</div><p class="err" id="lerr">${esc(s.error || "")}</p>${s.isHost ? `<p class="tiny" id="prepnote" style="margin-top:4px"></p>` : ""}</div>
     </div>`,
     dock: `<button class="btn ghost sm" id="reactbtn" aria-label="React">${I.smile}</button>${s.isHost ? `<button class="btn flex1" id="startbtn">${s.players.length > 1 ? `Start with ${s.players.length} players` : "Start solo"}</button>` : `<p class="note">Waiting for ${esc(s.players.find((p) => p.isHost)?.name || "the host")} to start. Invite more friends while you wait.</p>`}`,
@@ -677,8 +720,8 @@ function renderLobby() {
   if (s.isHost) {
     $("#editbtn").onclick = () => settingsSheet();
     $("#startbtn").onclick = async () => {
-      $("#startbtn").disabled = true; $("#startbtn").innerHTML = `<span class="spin"></span>Setting the stage`; Sound.go();
-      try { await api("start", session); refresh(); } catch (e) { $("#lerr").textContent = e.message; $("#startbtn").disabled = false; $("#startbtn").textContent = "Start game"; }
+      const b = $("#startbtn"); b.disabled = true; b.innerHTML = `<span class="spin"></span>Setting the stage`; Sound.go();
+      try { await api("start", session); refresh(); } catch (e) { if ($("#lerr")) $("#lerr").textContent = e.message; b.disabled = false; b.textContent = "Start game"; }
     };
   }
 }
@@ -775,7 +818,7 @@ function renderPlaying() {
     if (inCount) $("#ans")?.setAttribute("disabled", "");
     const submit = async () => {
       const text = ($("#ans")?.value || "").trim();
-      if (text.length < 3) { toast("Type your answer first", "bad"); return $("#ans")?.focus(); }
+      if (!text) { toast("Type your answer first", "bad"); return $("#ans")?.focus(); }
       const btn = $("#lockbtn"); btn.disabled = true;
       showLocked(text, boostArmed); Sound.lock(); if (boostArmed) popAt($("#lockedbox"), "2×");
       document.activeElement?.blur();
@@ -897,8 +940,8 @@ function renderReveal() {
     hud: hudGame({ pill: `Q ${q.index + 1}/${q.total}`, mid: esc(s.topic) }),
     rail: meter(q.index + 1, q.total, q.index + 1),
     stage: `${winner ? `<div class="banner">${I.crown}<div class="grow"><p class="t">${winner.playerId === s.me.id ? "You win this round" : `${esc(winner.name)} wins this round`}</p><p class="small muted">${esc(q.prompt)}</p></div></div>` : `<div class="banner cold"><div class="grow"><p class="t">Nobody scored. Tough one.</p><p class="small muted">${esc(q.prompt)}</p></div></div>`}
-      <div class="list" id="answers">${r.answers.map((a, i) => answerRow(a, i, r.answers, { stagger: true })).join("")}</div>
-      ${mine && !mine.skipped && !mine.flag ? `<div class="card tight mine-card hide-kb" id="minecard"><p class="small muted" style="margin-bottom:6px">Your answer</p><p style="line-height:1.55;margin-bottom:6px">${markAnswer(mine)}</p>${(mine.criteria || []).map((c) => `<div class="tick ${lvl(c.p)}"><b>${lvl(c.p) === "pass" ? "✓" : lvl(c.p) === "part" ? "~" : "✕"}</b><span class="grow">${esc(niceCrit(c.text))}</span></div>`).join("")}</div>` : ""}
+      <div class="list" id="answers" style="min-height:${Math.min(2, r.answers.length) * 60}px">${r.answers.map((a, i) => answerRow(a, i, r.answers, { stagger: true })).join("")}</div>
+      ${mine && !mine.skipped && !mine.flag ? `<div class="card tight mine-card hide-kb" id="minecard"><p class="small muted" style="margin-bottom:6px">Your answer</p><p class="ans-text" style="line-height:1.55;margin-bottom:6px">${markAnswer(mine)}</p>${(mine.criteria || []).map((c) => `<div class="tick ${lvl(c.p)}"><b>${lvl(c.p) === "pass" ? "✓" : lvl(c.p) === "part" ? "~" : "✕"}</b><span class="grow">${esc(niceCrit(c.text))}</span></div>`).join("")}</div>` : ""}
       <p class="tiny muted center hide-kb">Tap any answer to see what it hit.</p>`,
     side: sideStandings(s, true),
     dock: `<button class="btn ghost sm" id="reactbtn" aria-label="React">${I.smile}</button><button class="btn ghost sm" id="standbtn">Standings</button><button class="btn flex1" id="readybtn">${s.isHost ? (last ? "Final results" : "Next round") : "Ready"}</button>`,
@@ -916,9 +959,9 @@ function renderReveal() {
   $("#standbtn").onclick = () => openSheet("Standings", `<div class="list">${standingsRows(s.players, true)}</div>`);
   $("#reactbtn").onclick = () => openTray((x) => { api("react", { ...session, text: x }).catch(() => {}); });
   $("#readybtn").onclick = async () => {
-    Sound.click(); $("#readybtn").disabled = true;
-    try { await api(s.isHost ? "next" : "ready", { ...session, q: q.index }); if (!s.isHost) $("#readybtn").textContent = "Ready"; refresh(); }
-    catch (e) { toast(e.message, "bad"); $("#readybtn").disabled = false; }
+    Sound.click(); const b = $("#readybtn"); b.disabled = true;
+    try { await api(s.isHost ? "next" : "ready", { ...session, q: q.index }); if (!s.isHost) b.textContent = "Ready"; refresh(); }
+    catch (e) { toast(e.message, "bad"); b.disabled = false; }
   };
   updateReadyBtn(s, me, readyN); revealNote();
 }
@@ -980,7 +1023,7 @@ function renderRace() {
     });
     const submit = async () => {
       const text = ($("#ans")?.value || "").trim();
-      if (text.length < 3) { toast("Type your answer first", "bad"); return $("#ans")?.focus(); }
+      if (!text) { toast("Type your answer first", "bad"); return $("#ans")?.focus(); }
       const btn = $("#lockbtn"); btn.disabled = true; btn.innerHTML = `<span class="spin"></span>Checking`; Sound.lock();
       document.activeElement?.blur();
       try {
@@ -1112,7 +1155,7 @@ function rematchSheet() {
   const s = state;
   openSheet("Rematch", `<p class="muted" style="margin-bottom:14px">Same players, fresh questions. Scores reset. Keep the topic or try a new one.</p><div class="topicrow"><input class="field" id="rtopic" maxlength="60" value="${esc(s.topic)}" aria-label="Topic"><button class="ib dice" id="rdice" aria-label="Surprise me">${I.dice}</button></div><p class="err" id="rerr" style="margin-top:8px"></p>`, `<button class="btn wide" id="rgo">Back to lobby</button>`);
   bindDice($("#rdice"), $("#rtopic"));
-  $("#rgo").onclick = async () => { $("#rgo").disabled = true; try { await api("again", { ...session, topic: $("#rtopic").value }); lastRanks = {}; closeSheet(); refresh(); prepAsked = 0; prepareQuestions(); } catch (e) { $("#rerr").textContent = e.message; $("#rgo").disabled = false; } };
+  $("#rgo").onclick = async () => { const b = $("#rgo"); b.disabled = true; try { await api("again", { ...session, topic: $("#rtopic").value }); lastRanks = {}; closeSheet(); refresh(); prepAsked = 0; prepareQuestions(); } catch (e) { if ($("#rerr")) $("#rerr").textContent = e.message; b.disabled = false; } };
 }
 function reviewSheet(i = 0) {
   const s = state, r = s.summary[i];
@@ -1262,7 +1305,7 @@ function soloQuestion() {
   });
   const submit = async () => {
     const text = ($("#ans")?.value || "").trim();
-    if (text.length < 3) { toast("Type your answer first", "bad"); return $("#ans")?.focus(); }
+    if (!text) { toast("Type your answer first", "bad"); return $("#ans")?.focus(); }
     const btn = $("#lockbtn"); btn.disabled = true; btn.innerHTML = `<span class="spin"></span>Checking`; Sound.lock();
     document.activeElement?.blur(); cancelAnimationFrame(timerRAF);
     try {
@@ -1294,7 +1337,7 @@ function soloResult(r, q) {
     dock: `<button class="btn wide" id="nextq">${done ? "See my score" : "Next question"}</button>`,
   });
   if (g.points) { countUp($("#rpts"), g.points, 600, 0, (x) => `+${x} points`); Sound.coin(); popAt($(".banner"), `+${g.points}`); } else Sound.thud();
-  $("#nextq").onclick = async () => { Sound.click(); $("#nextq").disabled = true; try { const d = await soloFetch(!done); d.me.finished ? soloEnd() : soloQuestion(); } catch (e) { toast(e.message, "bad"); $("#nextq").disabled = false; } };
+  $("#nextq").onclick = async () => { Sound.click(); const b = $("#nextq"); b.disabled = true; try { const d = await soloFetch(!done); d.me.finished ? soloEnd() : soloQuestion(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } };
 }
 function soloGrid(answers, n) { return Array.from({ length: n }, (_, i) => { const a = answers[i]; return a ? (a.coverage >= 0.67 && !a.misFired && !a.flag ? 2 : a.points > 0 ? 1 : 0) : -1; }); }
 function soloEnd() {
