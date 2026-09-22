@@ -744,9 +744,11 @@ function renderLobby() {
 // The host's lobby asks the server to write questions in the background, so Start is instant.
 let prepAsked = 0;
 function prepareQuestions() { if (Date.now() - prepAsked < 3000) return; prepAsked = Date.now(); api("prepare", session).catch(() => {}); }
+const STAGE_NOTE = { write: "Writing your questions in the background...", check: "Fact-checking every question...", fix: "Polishing a few questions..." };
+const STAGE_LINE = { write: "Writing your questions", check: "Fact-checking every question", fix: "Polishing the last few" };
 function prepNote(s) {
   const el = $("#prepnote"); if (!el || !s.isHost) return;
-  el.textContent = s.prep === "ready" ? "Questions ready. Start whenever your crew is in." : s.prep === "pending" ? "Writing your questions in the background..." : s.prep === "rejected" ? "" : "";
+  el.textContent = s.prep === "ready" ? "Questions ready and fact-checked. Start whenever your crew is in." : s.prep === "pending" ? STAGE_NOTE[s.prepStage] || STAGE_NOTE.write : "";
   el.style.color = s.prep === "ready" ? "var(--green)" : "var(--muted)";
 }
 function settingsSheet() {
@@ -772,8 +774,8 @@ const TIPS = ["Save your 2× boost for a round you know cold.", "Lock in fast. S
 function renderGenerating() {
   const s = state;
   Sound.music("play"); Sound.intensity(0);
-  if ($("#gen")) return;
-  shell({ hud: hudGame({ mid: esc(s.topic) }), stage: `<div class="genstage" id="gen"><div class="logo xl capdrop">${I.cap}</div><p class="h1">Setting the stage</p><p class="muted">${plural(s.numQuestions, "question")} on <b style="color:var(--ink)">${esc(s.topic)}</b></p><div class="gensteps">${Array.from({ length: Math.min(12, s.numQuestions) }, (_, i) => `<i style="animation-delay:${i * 90}ms"></i>`).join("")}</div><p class="small muted" id="tip">${TIPS[0]}</p></div>`, dock: `<p class="note center">Get your thumbs ready.</p>` });
+  if ($("#gen")) { $("#genline").textContent = STAGE_LINE[s.prepStage] || "Getting everything ready"; return; }
+  shell({ hud: hudGame({ mid: esc(s.topic) }), stage: `<div class="genstage" id="gen"><div class="logo xl capdrop">${I.cap}</div><p class="h1">Setting the stage</p><p class="muted">${plural(s.numQuestions, "question")} on <b style="color:var(--ink)">${esc(s.topic)}</b></p><p class="small" id="genline" style="color:var(--cyan);font-weight:700">${STAGE_LINE[s.prepStage] || "Getting everything ready"}</p><div class="gensteps">${Array.from({ length: Math.min(12, s.numQuestions) }, (_, i) => `<i style="animation-delay:${i * 90}ms"></i>`).join("")}</div><p class="small muted" id="tip">${TIPS[0]}</p></div>`, dock: `<p class="note center">Get your thumbs ready.</p>` });
   let k = 0; const t = setInterval(() => { if (!$("#tip")) return clearInterval(t); k = (k + 1) % TIPS.length; $("#tip").textContent = TIPS[k]; }, 2600);
 }
 
