@@ -570,6 +570,10 @@ const serverNow = () => Date.now() + timeOffset;
 let streaming = false, seenEv = new Set(), eventsPrimed = false, lastByteAt = 0, lastPollAt = 0;
 // After your own action, confirm once even when streaming, so a stalled stream never hides your result.
 const refresh = () => poll();
+let resync = () => {};
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resync(); });
+window.addEventListener("online", () => resync());
+window.addEventListener("pageshow", (e) => { if (e.persisted) resync(); });
 function startRoom() {
   stopCurrent();
   state = null; screenKey = ""; roundKey = -1; raceShow = null; boostArmed = false; seenEv = new Set(); eventsPrimed = false; streaming = false;
@@ -583,7 +587,10 @@ function startRoom() {
     if (!streaming && now - lastPollAt > 1500) poll();
     if (streaming && now - lastByteAt > 9000) { streaming = false; conn?.abort(); poll(); }
   }, 1000);
-  stopCurrent = () => { alive = false; streaming = false; clearTimeout(pollTimer); clearInterval(health); ctrl.abort(); };
+  stopCurrent = () => { alive = false; streaming = false; clearTimeout(pollTimer); clearInterval(health); ctrl.abort(); resync = () => {}; };
+  // Back from another app, the network, or the browser's page cache: catch up right away instead of
+  // waiting for the silence watchdog. A stream that went quiet while hidden is replaced.
+  resync = () => { if (!alive) return; if (Date.now() - lastByteAt > 3000) { streaming = false; conn?.abort(); } poll(); };
   const pollLoop = async () => {
     if (!alive || streaming) return;
     await poll();
