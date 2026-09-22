@@ -792,7 +792,11 @@ function renderPlaying() {
   $("#live").textContent = liveLine(s.players);
   if ($("#lb")) flip($("#lb"), () => ($("#lb").innerHTML = standingsRows(s.players, false)));
   if (s.myAnswer) { const w = s.players.filter((p) => !p.submitted && !p.away).length; $("#dock .note")?.remove(); if (!$("#waitnote")) $("#dock").insertAdjacentHTML("afterbegin", `<p class="note" id="waitnote"></p>`); $("#waitnote").textContent = w ? `Waiting for ${plural(w, "player")}. Reveal comes the moment everyone is in.` : "Checking answers"; }
-  if (s.mode === "timed") timerLoop();
+  if (s.mode === "untimed" && s.round.endsAt && !$("#clock")) {
+    $("#sndbtn")?.insertAdjacentHTML("beforebegin", `<span class="clock" id="clock"></span>`);
+    if (!s.myAnswer) { toast("Last call: 30 seconds to lock in"); Sound.timeup(); }
+  }
+  if (s.round.endsAt) timerLoop();
 }
 function showLocked(text, doubled) {
   const box = $("#lockedbox"); if (!box) return;
@@ -804,17 +808,18 @@ let timerRAF = null;
 function timerLoop() {
   cancelAnimationFrame(timerRAF);
   const tick = () => {
-    const s = state; if (!s || s.status !== "playing" || s.mode !== "timed" || !s.round?.endsAt) return;
-    const now = serverNow(), start = s.round.startedAt + s.countdownMs, total = s.secondsPerQ * 1000;
+    const s = state; if (!s || s.status !== "playing" || s.mode === "race" || !s.round?.endsAt) return;
+    const timed = s.mode === "timed";
+    const now = serverNow(), start = timed ? s.round.startedAt + s.countdownMs : s.round.endsAt - s.round.lastCallMs, total = timed ? s.secondsPerQ * 1000 : s.round.lastCallMs;
     const ov = $("#overlay");
-    if (now < start) {
+    if (timed && now < start) {
       const left = Math.ceil((start - now) / 1000);
       if (countShown !== left) { countShown = left; ov.classList.add("on"); ov.innerHTML = `<div><div class="big">${left}</div><p class="sub">Question ${s.question.index + 1} of ${s.question.total}  ·  ${esc(s.question.label === "Boss" ? "Boss round" : s.question.label)}</p></div>`; Sound.count(); }
       $("#ans")?.setAttribute("disabled", ""); $("#lockbtn")?.setAttribute("disabled", "");
       setFuse(1); if ($("#clock")) $("#clock").textContent = s.secondsPerQ;
       timerRAF = requestAnimationFrame(tick); return;
     }
-    if (countShown !== 0) {
+    if (timed && countShown !== 0) {
       countShown = 0; ov.innerHTML = `<div class="big go">GO</div>`; Sound.go(); setTimeout(() => ov.classList.remove("on"), 420);
       $("#ans")?.removeAttribute("disabled"); if (!s.myAnswer) { $("#lockbtn")?.removeAttribute("disabled"); $("#ans")?.focus(); }
     }
@@ -928,8 +933,19 @@ function revealNote() {
 }
 
 // ---------- race ----------
+let raceTick = null;
+function raceClock() {
+  clearTimeout(raceTick);
+  const s = state; if (!s || s.mode !== "race" || s.status !== "playing" || !s.raceEndsAt) return;
+  if (!$("#clock")) $("#sndbtn")?.insertAdjacentHTML("beforebegin", `<span class="clock" id="clock"></span>`);
+  const left = Math.max(0, s.raceEndsAt - serverNow()), secs = Math.ceil(left / 1000);
+  const c = $("#clock"); if (c) { c.textContent = secs; c.classList.toggle("hot", left < 10000); }
+  setFuse(left / 60000, left < 10000);
+  if (left > 0) raceTick = setTimeout(raceClock, 250);
+}
 function renderRace() {
   const s = state, n = s.totalQuestions, me = s.players.find((p) => p.isMe);
+  setTimeout(raceClock, 0);
   Sound.music("play"); Sound.intensity(Math.min(1, (me?.progress || 0) / n));
   const lanes = `<div class="lanes" id="lanes">${s.players.map((p) => `<div class="lane">${disc(p, "sm", p.typing ? "typing" : "")}<span style="width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span><span class="track"><i class="${p.isMe ? "me" : ""}" style="width:${Math.min(100, (p.progress / n) * 100)}%"></i></span><span class="tiny muted" style="width:34px;text-align:right">${Math.min(p.progress, n)}/${n}</span></div>`).join("")}</div>`;
   if (raceShow && Date.now() < raceShow.until) {
