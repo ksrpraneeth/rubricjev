@@ -5,7 +5,7 @@
     },
     "api/og.js": {
       "maxDuration": 20,
-      "includeFiles": "assets/**"
+      "includeFiles": "{assets/**,node_modules/harfbuzzjs/**,node_modules/@resvg/**}"
     },
     "api/invite.js": {
       "maxDuration": 10,
