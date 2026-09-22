@@ -213,7 +213,8 @@ let fitQueued = false;
 function fitStage() {
   fitQueued = false;
   const m = $("#main"); if (!m) return;
-  fitSteps(m);
+  // Measure the settled layout: entrance animations slide content, which would count as overflow.
+  m.classList.add("measuring"); fitSteps(m); m.classList.remove("measuring");
   $$(".list", m).forEach(moreHint);
 }
 function fitSteps(m) {

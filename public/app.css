@@ -412,3 +412,4 @@ body.fit5 .stage > .main::-webkit-scrollbar { display: none; }
 body.fit1 .mine-card .ans-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 body.fit2 .mine-card .ans-text { -webkit-line-clamp: 2; }
 #lerr:empty { display: none; }
+.measuring, .measuring * { transform: none !important; }
