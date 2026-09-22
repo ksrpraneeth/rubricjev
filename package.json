@@ -1,11 +1,13 @@
 {
-  "name": "jev-rubric-grader",
+  "name": "factclash",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node --env-file=.env server.js"
   },
   "dependencies": {
-    "@upstash/redis": "^1.39.0"
+    "@resvg/resvg-js": "^2.6.2",
+    "@upstash/redis": "^1.39.0",
+    "satori": "^0.33.5"
   }
 }

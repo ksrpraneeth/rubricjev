@@ -1,0 +1,10 @@
+{
+  "name": "FactClash",
+  "short_name": "FactClash",
+  "description": "No cap. Just facts. The party game where the best answer wins.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#140A2E",
+  "theme_color": "#140A2E",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

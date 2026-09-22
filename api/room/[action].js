@@ -1,12 +1,16 @@
 import { runAction, errorStatus } from "../../lib/actions.js";
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  const len = Number(req.headers["content-length"] || 0);
+  if (len > 16000) return res.status(413).json({ error: "That was too long." });
+  const ip = String(req.headers["x-real-ip"] || req.headers["x-forwarded-for"] || "unknown").split(",")[0].trim();
   try {
-    res.setHeader("Cache-Control", "no-store");
-    const ip = String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
-    res.status(200).json(await runAction(req.query.action, req.body || {}, ip));
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    res.status(200).json(await runAction(String(req.query.action || ""), body, ip));
   } catch (err) {
-    if (errorStatus(err) >= 500) console.error(err);
-    res.status(errorStatus(err)).json({ error: err.message });
+    const status = errorStatus(err);
+    if (status >= 500) console.error(err);
+    res.status(status).json({ error: status >= 500 && !err.status ? "Something went wrong. Try again." : err.message });
   }
 }

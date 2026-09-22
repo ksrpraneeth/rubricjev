@@ -1,31 +1,32 @@
-# Ladder — multiplayer rubric quiz on Jev
+# FactClash
 
-Pick any topic. OpenAI builds a ladder of questions from child-easy to expert-only. Players answer in their own words. Jev (TypeSafe AI) grades every rubric point in one call, and the best answers win.
+**No cap. Just facts.** The party game where the best answer wins.
+
+Pick any topic, invite friends with a link, and everyone types the key facts. Questions climb from Warm-up to the Boss round. Every answer is checked point by point, players see exactly which parts were right or wrong, and the best answer takes the crown.
 
 ## Modes
-- **Timed**: everyone answers the same question against a clock. Speed bonus.
-- **Untimed**: reveal when everyone has answered. Host can force it.
-- **Race**: each player climbs at their own pace, graded instantly, live leaderboard.
+- **Classic**: same question for everyone against the clock, 3-2-1 countdown, speed bonus.
+- **Chill**: no clock. The round reveals once everyone has answered or all players tap Ready.
+- **Race**: everyone climbs at their own pace with live lanes.
+- **Daily Clash**: one topic a day, same questions for everyone, global leaderboard, streaks and a spoiler-free share grid.
+- **Challenge links**: anyone can replay a finished game's questions and land on its leaderboard.
 
 ## Scoring
-- Coverage = average rubric probability from Jev, times a rung multiplier from 1× (first) to 2× (last).
-- Speed bonus up to +25% in timed and race modes.
-- Streak bonus +10% per consecutive good answer, up to +50%.
-- A detected misconception halves the points. All rubric points above 90% with no misconception earns a flawless badge.
+Each question has 2 or 3 key facts. Each fact earns full credit (clearly hit), half credit (partly) or nothing, so a totally wrong answer scores exactly zero. Later rounds pay up to 2x, fast answers get up to +25%, great answers in a row build a streak bonus, one 2x boost per game, and a famous myth or a clear factual error halves the points.
+
+## Architecture
+- `public/`: the game client (`index.html`, `app.css`, `app.js`). Mobile first, one screen, keyboard aware, synthesised music and sound.
+- `api/room/[action].js`: game actions (create, join, start, answer, ready, react, leave, kick, end, challenge, daily).
+- `api/stream.js`: live room stream. Each player holds one streamed response; the server pushes state on every change through Redis pub/sub. Clients fall back to polling only if a network blocks streaming.
+- `api/og.js` and `api/invite.js`: per-room, per-challenge and daily link previews for WhatsApp, iMessage and social apps.
+- `lib/generate.js`: question ladders (OpenAI, JSON schema, safety rules). `lib/grade.js`: key-fact grading with the TypeSafe decision model. `lib/game.js`: rooms, rounds, scoring. `lib/solo.js`: Daily and challenges. `lib/store.js`: Upstash Redis or in-memory store with pub/sub.
 
 ## Run locally
 ```
-node --env-file=.env server.js
+npm install
+RATE_LIMIT_OFF=1 STORE=memory node --env-file=.env server.js
 ```
-Needs Node 20+ and a `.env` with `JEV_API_KEY` and `OPEN_AI_KEY`. Without Upstash variables it uses an in-memory store, which is fine for one process.
+`.env` needs `JEV_API_KEY` and `OPEN_AI_KEY`. Without Upstash variables the store runs in memory.
 
 ## Deploy
-Vercel serverless functions under `api/`, static UI under `public/`. Rooms live in Upstash Redis; set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (or the `KV_REST_API_*` pair the Vercel marketplace creates). Optional `OPENAI_MODEL` (default `gpt-5.4-mini`).
-
-## Layout
-- `lib/generate.js` question ladder generation (OpenAI, JSON schema)
-- `lib/grade.js` Jev grading of one answer against a rubric
-- `lib/game.js` rooms, rounds, modes, scoring
-- `lib/store.js` Upstash or in-memory store
-- `api/room/[action].js` all game endpoints (`create, join, settings, start, state, typing, answer, next, again`)
-- `public/index.html` the game; `public/practice.html` solo practice with fixed sets in `questions/`
+Vercel with Upstash Redis (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) and the two keys above as environment variables. Never set `RATE_LIMIT_OFF` in production.

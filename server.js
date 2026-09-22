@@ -6,15 +6,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { grade, validate, publicQuestions } from "./lib/grade.js";
 import { runAction, errorStatus } from "./lib/actions.js";
+import { renderOg } from "./lib/og.js";
+import { renderInvite } from "./lib/invite.js";
+import { SECURITY_HEADERS } from "./lib/headers.js";
+import { streamRoom } from "./lib/stream.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = process.env.JEV_API_KEY;
 if (!API_KEY) { console.error("JEV_API_KEY is missing. Run: node --env-file=.env server.js"); process.exit(1); }
 
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml" };
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png" };
 const send = (res, status, payload, type = "application/json") => {
-  res.writeHead(status, { "Content-Type": type });
+  res.writeHead(status, { "Content-Type": type, ...SECURITY_HEADERS, "Cache-Control": "no-cache" });
   res.end(type.startsWith("application/json") ? JSON.stringify(payload) : payload);
 };
 async function readJson(req) {
@@ -26,6 +30,14 @@ async function readJson(req) {
 http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    const origin = `http://${req.headers.host}`;
+    const inv = url.pathname.match(/^\/(r|c)\/([A-Za-z0-9]+)$/);
+    if (inv || url.pathname === "/daily") {
+      const q = inv ? (inv[1] === "r" ? { room: inv[2] } : { challenge: inv[2] }) : { daily: 1 };
+      return send(res, 200, await renderInvite(q, origin), "text/html; charset=utf-8");
+    }
+    if (url.pathname === "/api/stream" && req.method === "POST") return streamRoom(req, res, await readJson(req), API_KEY);
+    if (url.pathname === "/api/og") { res.writeHead(200, { "Content-Type": "image/png" }); return res.end(await renderOg(Object.fromEntries(url.searchParams))); }
     const m = url.pathname.match(/^\/api\/room\/([a-z]+)$/);
     if (m && req.method === "POST") {
       try { return send(res, 200, await runAction(m[1], await readJson(req), req.socket.remoteAddress)); }
