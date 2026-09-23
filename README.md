@@ -21,6 +21,18 @@ Each question has 2 or 3 key facts. Each fact earns full credit (clearly hit), h
 - `api/og.js` and `api/invite.js`: per-room, per-challenge and daily link previews for WhatsApp, iMessage and social apps.
 - `lib/generate.js`: question ladders with GPT only (writer `gpt-6-luna`, reviewer `gpt-6-sol`; override with `OPENAI_MODEL`, `OPENAI_REVIEW_MODEL`, `OPENAI_REVIEW_EFFORT`, `PLAN_EFFORT`), JSON schema, safety rules. Grading uses the TypeSafe decision model only. `lib/grade.js`: key-fact grading with the TypeSafe decision model. `lib/game.js`: rooms, rounds, scoring. `lib/solo.js`: Daily and challenges. `lib/store.js`: Upstash Redis or in-memory store with pub/sub.
 
+## Questions you can trust
+The writer drafts about half again as many questions as the game needs. A stronger reviewer checks every draft for wrong or outdated facts, answer keys that would reject a valid answer, giveaways, duplicates and vague wording, and rates each one's difficulty. The game keeps the cleanest drafts spread from easiest to hardest and orders them by that rating; only when too few pass are fresh candidates written for the gaps and reviewed again. Drafts the reviewer could not reach are used only as a last resort. The lobby shows the real progress (writing, fact-checking, polishing), and each ladder logs one line with its timing and review results.
+
+## Built for real phones and real networks
+- Every screen fits one viewport. When content is taller than the phone, the screen tightens spacing, scales down slightly, then drops extras; only the tiniest screens scroll the middle.
+- Requests time out instead of hanging, and safe-to-repeat actions (answer, ready, next, state) retry on their own. Start, next, rematch and join are idempotent, so a retry after a lost reply never skips a round, resets a game or creates a ghost player.
+- Coming back from another app or a dropped connection refreshes the room at once.
+
+## Tools
+- `tools/calibrate.mjs`: generates questions, simulates answer styles and prints a grading table per style.
+- `tools/regrade.mjs`: replays a saved calibration set against the current grader, to check a grading change before shipping it.
+
 ## Run locally
 ```
 npm install
