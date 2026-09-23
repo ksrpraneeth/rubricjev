@@ -421,3 +421,5 @@ body.fit2 .mine-card .ans-text { -webkit-line-clamp: 2; }
 /* Narrow phones: the home bar (logo, profile chip, sound) must fit without clipping. */
 @media (max-width: 370px) { .hud { gap: 6px; padding: 0 10px; } .logo b { font-size: 16px; } .chipl { gap: 5px; padding-right: 9px; } }
 @media (max-width: 340px) { .logo b { font-size: 14.5px; } .logo svg { width: 26px; height: 26px; } .logo { gap: 6px; } }
+/* Very short screens with the keyboard up: the question and answer box come first, the typing line waits. */
+@media (max-height: 340px) { body.kb .live { display: none; } }
