@@ -423,3 +423,10 @@ body.fit2 .mine-card .ans-text { -webkit-line-clamp: 2; }
 @media (max-width: 340px) { .logo b { font-size: 14.5px; } .logo svg { width: 26px; height: 26px; } .logo { gap: 6px; } }
 /* Very short screens with the keyboard up: the question and answer box come first, the typing line waits. */
 @media (max-height: 340px) { body.kb .live { display: none; } }
+/* Legal links and the usage-stats switch */
+.legal { font-size: 12px; line-height: 1.5; color: var(--dim); text-align: center; margin-top: 8px; }
+.legal a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.toggle { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; padding: 12px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid var(--line); cursor: pointer; }
+.toggle input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--gold); flex: none; }
+.toggle b { display: block; font-size: 14.5px; }
+.toggle small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }

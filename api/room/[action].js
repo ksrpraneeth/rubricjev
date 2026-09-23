@@ -11,8 +11,10 @@ export default async function handler(req, res) {
   const isTest = !!key && key.length >= 24 && (req.headers["x-fc-test"] === key || cookieKey === key);
   const ip = isTest ? "test-runner" : String(req.headers["x-real-ip"] || req.headers["x-forwarded-for"] || "unknown").split(",")[0].trim();
   try {
-    const body = req.body && typeof req.body === "object" ? req.body : {};
-    res.status(200).json(await runAction(String(req.query.action || ""), body, ip));
+    // Beacons arrive as text/plain JSON.
+    let body = req.body; if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = {}; } }
+    if (!body || typeof body !== "object") body = {};
+    res.status(200).json(await runAction(String(req.query.action || ""), body, ip, { gpc: req.headers["sec-gpc"] === "1" }));
   } catch (err) {
     const status = errorStatus(err);
     if (status >= 500) console.error(err);

@@ -1,12 +1,13 @@
 import "../lib/quiet.js";
 import { grade, validate } from "../lib/grade.js";
 import { store } from "../lib/store.js";
+import { hashId } from "../lib/stats.js";
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   const ip = String(req.headers["x-real-ip"] || req.headers["x-forwarded-for"] || "unknown").split(",")[0].trim();
   const slot = `rate:practice:${Math.floor(Date.now() / 3600000)}`;
-  const n = await store.hincrby(slot, ip, 1);
+  const n = await store.hincrby(slot, hashId(ip), 1);
   if (n === 1) await store.expire(slot, 3600);
   if (n > 300) return res.status(429).json({ error: "Slow down a little and try again soon." });
   const v = validate(req.body);

@@ -87,6 +87,7 @@ const RETRIES = { answer: 3, soloanswer: 3, ready: 2, next: 2, state: 1, solosta
 const SLOW = { prepare: 130000, start: 130000, again: 130000, create: 30000, soloanswer: 30000, answer: 30000, solostate: 60000 };
 async function api(action, body) {
   const tries = RETRIES[action] || 0;
+  if (statsOff()) body = { ...(body || {}), ns: 1 };
   for (let attempt = 0; ; attempt++) {
     let r;
     const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), SLOW[action] || 15000);
@@ -95,15 +96,64 @@ async function api(action, body) {
     clearTimeout(timer);
     let d = {}; try { d = await r.json(); } catch {}
     if (r.status >= 502 && attempt < tries) { await sleep(800 * (attempt + 1)); continue; }
-    if (!r.ok) { const e = new Error(d.error || "Something went wrong. Try again."); e.status = r.status; throw e; }
+    if (!r.ok) { const e = new Error(d.error || "Something went wrong. Try again."); e.status = r.status; if (FRICTION.has(action)) step("error", { where: action, msg: e.message.slice(0, 50) }); throw e; }
     return d;
   }
 }
+const FRICTION = new Set(["create", "join", "start", "answer", "again", "solostate", "soloanswer"]);
+
+// =====================================================================
+// usage stats and player journeys: first party, no cookies
+// =====================================================================
+// Counts and journey steps go only to our own server. Nothing extra is stored on the device.
+// Off when the player turns it off in their profile, or the browser sends Global Privacy Control.
+const statsOff = () => !!profile.noStats || navigator.globalPrivacyControl === true;
+// Where this visit came from: a campaign tag (?utm_source= or ?ref=), a share channel (?v=), another site, or direct.
+// Kept in memory for this visit only.
+const LANDING = (() => {
+  const u = new URLSearchParams(location.search), path = location.pathname;
+  const kind = /^\/r\//.test(path) ? "invite" : /^\/c\//.test(path) ? "challenge" : path === "/daily" ? "daily" : "home";
+  const tag = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 24);
+  const utm = tag(u.get("utm_source") || u.get("ref")), camp = tag(u.get("utm_campaign")), v = tag(u.get("v"));
+  let src = utm ? (camp ? `${utm}/${camp}` : utm) : v ? `share:${v}` : "direct";
+  if (src === "direct") { try { const r = document.referrer && new URL(document.referrer).hostname.replace(/^www\./, ""); if (r && r !== location.hostname) src = `ref:${tag(r)}`; } catch {} }
+  return { kind, src, v };
+})();
+function beacon(action, body) {
+  const data = JSON.stringify(body);
+  try { if (navigator.sendBeacon?.(`/api/room/${action}`, new Blob([data], { type: "text/plain" }))) return; } catch {}
+  fetch(`/api/room/${action}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: data, keepalive: true }).catch(() => {});
+}
+// Journey steps are the only analytics traffic, and they are batched to keep requests rare: one upload every
+// 45 seconds at most, or when 40 steps pile up, at the end of a game, and when the page is hidden.
+// Visits and shares are counted on the server from these same batches.
+const J = { sid: rid().slice(0, 12), q: [], first: true, timer: null };
+const FLUSH_NOW = new Set(["finish", "daily_finish", "leave"]);
+function step(e, props = {}) {
+  if (statsOff()) return;
+  J.q.push({ e, t: Date.now(), ...props });
+  if (J.q.length >= 40 || FLUSH_NOW.has(e)) flushJourney(); else if (!J.timer) J.timer = setTimeout(flushJourney, 45000);
+}
+function flushJourney() {
+  clearTimeout(J.timer); J.timer = null;
+  if (!J.q.length) return;
+  if (statsOff()) { J.q = []; return; }
+  const events = J.q.splice(0, 50);
+  beacon("journey", { sid: J.sid, device: profile.device, first: J.first, topic: (typeof state !== "undefined" && state?.topic) || null, events });
+  J.first = false;
+  if (J.q.length) J.timer = setTimeout(flushJourney, 1000);
+}
+const screenName = () => (typeof state !== "undefined" && state ? state.status : location.pathname === "/daily" ? "daily" : location.pathname.slice(1, 2) || "home");
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { step("hidden", { screen: screenName() }); flushJourney(); } });
+window.addEventListener("pagehide", flushJourney);
+// Share links carry the channel they were sent through, so opens and joins can be credited to it.
+const tagLink = (url, ch) => `${url}${url.includes("?") ? "&" : "?"}v=${ch}`;
+function shared(ch, ctx) { step("share", { ch, ctx }); }
 function loadScript(src) {
   return new Promise((res, rej) => { if ($(`script[src="${src}"]`)) return res(); const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
 }
 async function qrSvg(text) {
-  await loadScript("https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js");
+  await loadScript("/vendor/qrcode.js");
   const q = window.qrcode(0, "M"); q.addData(text); q.make();
   return { svg: q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }), q };
 }
@@ -402,21 +452,23 @@ function boot() {
 // =====================================================================
 // intro, hub, host, join
 // =====================================================================
+const LEGAL_LINKS = `<a href="/privacy">Privacy</a>  ·  <a href="/terms">Terms</a>  ·  <a href="/cookies">Cookies</a>`;
 const STEPS = [
   ["Pick any topic", "Cricket, biryani, space, your favourite show. Anything goes."],
   ["Answer in your own words", "Everyone gets the same question. Each round gets harder."],
   ["Best answer takes the crown", "Score for what you know, how fast you are, and streaks."],
 ];
 function intro(invite = null) {
-  Sound.music("lobby");
+  Sound.music("lobby"); step("intro", { step: "seen" });
   shell({
     hud: hudHome(), narrow: true,
     stage: `<div class="hero"><div class="logo xl capdrop">${I.cap}<b>FACTCLASH</b></div><p class="tagline">No cap. Just facts.</p></div>
       ${invite ? inviteCard(invite) : ""}
-      <div class="steps">${STEPS.map(([h, p], i) => `<div class="stepc"><span class="n">${i + 1}</span><div><p class="h3">${h}</p><p class="small muted">${p}</p></div></div>`).join("")}</div>`,
+      <div class="steps">${STEPS.map(([h, p], i) => `<div class="stepc"><span class="n">${i + 1}</span><div><p class="h3">${h}</p><p class="small muted">${p}</p></div></div>`).join("")}</div>
+      <p class="legal fit-hide2">By playing you agree to our <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</p>`,
     dock: `<button class="btn wide" id="go">${invite ? `Join ${esc(invite.host)}'s game` : "Let's play"}</button>`,
   });
-  $("#go").onclick = () => { Sound.go(); profile.seenIntro = true; saveProfile(); invite ? joinScreen(invite.code, invite) : hub(); };
+  $("#go").onclick = () => { Sound.go(); step("intro", { step: "done" }); profile.seenIntro = true; saveProfile(); invite ? joinScreen(invite.code, invite) : hub(); };
 }
 const inviteCard = (inv) => `<div class="invite">${disc({ name: inv.host, avatar: inv.players?.[0]?.avatar ?? 0 }, "lg")}<div class="grow"><p class="small muted">${esc(inv.host)} invited you to play</p><p class="h2">${esc(inv.topic)}</p><p class="tiny muted">${plural(inv.players.length, "player")} in the room</p></div></div>`;
 async function inviteFlow(code) {
@@ -443,14 +495,15 @@ function rotatePlaceholder(input) {
 function bindDice(btn, input) { btn.onclick = () => { input.value = surprise(input.value); btn.classList.remove("roll"); void btn.offsetWidth; btn.classList.add("roll"); Sound.click(); input.dispatchEvent(new Event("input")); }; }
 
 async function hub() {
-  Sound.music("lobby");
+  Sound.music("lobby"); step("hub");
   const info = levelInfo(profile.xp);
   shell({
     hud: hudHome(), narrow: true,
     stage: `${profile.name ? `<div class="card tight"><div class="rowf"><div class="grow"><p class="h3">Hey ${esc(profile.name)}</p><p class="tiny muted">Level ${info.level}  ·  ${info.into} / ${info.need} XP to level ${info.level + 1}</p></div>${profile.dailyStreak > 1 && profile.lastDaily >= yesterday() ? `<span class="flame">${I.flame}${profile.dailyStreak}</span>` : ""}</div><div class="xpbar" style="margin-top:10px"><i id="hubxp"></i></div></div>` : ""}
       <div class="daily" id="dailycard"><p class="num">Daily Clash</p><p class="topic" id="dtopic"><span class="spin"></span></p><p class="small muted" id="dmeta">Same 8 questions for everyone today.</p><button class="btn wide go" id="dgo">Play today's challenge</button></div>
       <div class="card hide-kb"><div class="rowf" style="margin-bottom:12px"><p class="h3 grow">How to play</p><button class="btn xs ghost" id="howbtn">Scoring</button></div>
-        <div class="mini"><div class="li"><span class="ic">${I.pen}</span><span><b>Host a game</b> on any topic you like</span></div><div class="li"><span class="ic">${I.chat}</span><span><b>Invite friends</b> with one tap on WhatsApp</span></div><div class="li"><span class="ic">${I.crown}</span><span><b>Best answers win</b> and take the crown</span></div></div></div>`,
+        <div class="mini"><div class="li"><span class="ic">${I.pen}</span><span><b>Host a game</b> on any topic you like</span></div><div class="li"><span class="ic">${I.chat}</span><span><b>Invite friends</b> with one tap on WhatsApp</span></div><div class="li"><span class="ic">${I.crown}</span><span><b>Best answers win</b> and take the crown</span></div></div></div>
+      <p class="legal hide-kb fit-hide1">${LEGAL_LINKS}</p>`,
     dock: `<button class="btn violet flex1" id="joinbtn">Join a game</button><button class="btn flex1" id="hostbtn">Host a game</button>`,
   });
   requestAnimationFrame(() => { const x = $("#hubxp"); if (x) x.style.width = (info.frac * 100).toFixed(1) + "%"; });
@@ -487,6 +540,7 @@ function modeTiles(id, mode) {
 }
 function hostScreen(prefill = "") {
   let mode = LS.get("kc:lastmode", "timed"), n = LS.get("kc:lastn", 8), sec = LS.get("kc:lastsec", 45);
+  step("host_open");
   shell({
     hud: `<button class="ib" id="backbtn" aria-label="Back">${I.back}</button><span class="mid">Host a game</span><button class="ib" id="sndbtn" aria-label="Sound">${soundIcon()}</button>`,
     narrow: true,
@@ -497,7 +551,7 @@ function hostScreen(prefill = "") {
       <section class="hide-kb"><p class="sec-t">Game style</p>${modeTiles("mode", mode)}</section>
       <section class="grid2 hide-kb"><div><p class="sec-t">Questions</p><div class="stepper" id="nstep"><button data-d="-1" aria-label="Fewer questions">−</button><output id="nout">${n}</output><button data-d="1" aria-label="More questions">+</button></div></div>
         <div id="secwrap"><p class="sec-t">Seconds each</p><div class="stepper" id="sstep"><button data-d="-15" aria-label="Less time">−</button><output id="sout">${sec}</output><button data-d="15" aria-label="More time">+</button></div></div></section>
-      </div><p class="err" id="herr" style="margin-top:12px"></p></div>`,
+      </div><p class="err" id="herr" style="margin-top:12px"></p><p class="legal hide-kb fit-hide2">By creating a room you agree to our <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</p></div>`,
     dock: `<button class="btn wide" id="create">Create room</button>`,
   });
   const setMode = (m) => { mode = m; $$("#mode .mode").forEach((b) => { b.classList.toggle("on", b.dataset.v === m); b.setAttribute("aria-checked", b.dataset.v === m); }); $("#secwrap").style.visibility = m === "timed" ? "visible" : "hidden"; };
@@ -517,20 +571,22 @@ function hostScreen(prefill = "") {
     $("#create").disabled = true; $("#create").innerHTML = `<span class="spin"></span>Opening room`;
     try {
       LS.set("kc:lastmode", mode); LS.set("kc:lastn", n); LS.set("kc:lastsec", sec);
-      const r = await api("create", { name, topic, mode, numQuestions: n, secondsPerQ: sec, level: myLevel(), device: profile.device });
-      saveSession(r); Sound.go(); navigate(`/r/${r.code}`);
+      const r = await api("create", { name, topic, mode, numQuestions: n, secondsPerQ: sec, level: myLevel(), device: profile.device, src: LANDING.src });
+      step("create", { mode, n, sec }); saveSession(r); Sound.go(); navigate(`/r/${r.code}`);
     } catch (e) { if ($("#herr")) $("#herr").textContent = e.message; if ($("#create")) { $("#create").disabled = false; $("#create").textContent = "Create room"; } }
   };
   (profile.name ? $("#topic") : $("#nm")).focus();
 }
 
 function joinScreen(code = "", invite = null) {
+  const via = invite && code ? `link:${LANDING.kind === "invite" ? LANDING.v || "none" : "open"}` : "code";
+  step("join_open", { via });
   shell({
     hud: `<button class="ib" id="backbtn" aria-label="Back">${I.back}</button><span class="mid">Join a game</span><button class="ib" id="sndbtn" aria-label="Sound">${soundIcon()}</button>`,
     narrow: true,
     stage: `${invite ? inviteCard(invite) : ""}<div class="card">${nameField()}
       <label class="label" for="code">Room code</label><input class="field codebox" id="code" maxlength="4" placeholder="ABCD" value="${esc(code)}" autocapitalize="characters" autocomplete="off" enterkeyhint="go">
-      <p class="err" id="jerr" style="margin-top:10px"></p></div>`,
+      <p class="err" id="jerr" style="margin-top:10px"></p><p class="legal hide-kb fit-hide2">By joining you agree to our <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</p></div>`,
     dock: `<button class="btn wide" id="join">${invite ? `Join ${esc(invite.host)}'s game` : "Join room"}</button>`,
   });
   $("#backbtn").onclick = () => { Sound.click(); navigate("/"); };
@@ -539,7 +595,7 @@ function joinScreen(code = "", invite = null) {
     if (!name) { $("#jerr").textContent = "Enter your name first."; return $("#nm").focus(); }
     if (!/^[A-Z0-9]{4}$/.test(c)) { $("#jerr").textContent = "Room codes are 4 letters."; return $("#code").focus(); }
     $("#join").disabled = true; $("#join").innerHTML = `<span class="spin"></span>Joining`;
-    try { const r = await api("join", { name, code: c, level: myLevel(), device: profile.device }); saveSession(r); Sound.go(); navigate(`/r/${r.code}`); }
+    try { const r = await api("join", { name, code: c, level: myLevel(), device: profile.device, via, src: LANDING.src }); step("join", { via }); saveSession(r); Sound.go(); navigate(`/r/${r.code}`); }
     catch (e) { if ($("#jerr")) $("#jerr").textContent = e.message; if ($("#join")) { $("#join").disabled = false; $("#join").textContent = "Join room"; } }
   };
   $("#join").onclick = go;
@@ -550,13 +606,15 @@ function joinScreen(code = "", invite = null) {
 }
 
 function profileSheet() {
-  const info = levelInfo(profile.xp);
+  const info = levelInfo(profile.xp); step("profile");
   openSheet("Your profile", `
     <div class="rowf" style="margin-bottom:14px">${disc({ name: profile.name || "?", avatar: 0, level: info.level }, "lg")}<div class="grow"><p class="h2">Level ${info.level}</p><p class="small muted">${info.into} / ${info.need} XP to level ${info.level + 1}</p><div class="xpbar" style="margin-top:8px"><i style="width:${(info.frac * 100).toFixed(1)}%"></i></div></div></div>
     <div class="stats" style="margin-bottom:14px"><div class="stat"><b>${profile.games}</b><span>Games</span></div><div class="stat"><b>${profile.wins}</b><span>Crowns won</span></div><div class="stat"><b>${profile.flawless}</b><span>Flawless</span></div></div>
     <div class="stats" style="margin-bottom:6px"><div class="stat"><b>${profile.bestStreak}</b><span>Best streak</span></div><div class="stat"><b>${profile.dailyStreak}</b><span>Daily streak</span></div><div class="stat"><b>${profile.xp}</b><span>Total XP</span></div></div>
-    ${nameField("pname")}`, `<button class="btn ghost flex1" id="phow">Scoring</button><button class="btn flex1" id="psave">Save</button>`);
-  $("#psave").onclick = () => { takeName("pname"); closeSheet(); toast("Saved", "good"); if (!session) hub(); };
+    ${nameField("pname")}
+    <label class="toggle"><input type="checkbox" id="pstats" ${profile.noStats || navigator.globalPrivacyControl === true ? "" : "checked"} ${navigator.globalPrivacyControl === true ? "disabled" : ""}><span><b>Help improve FactClash</b><small>${navigator.globalPrivacyControl === true ? "Your browser's privacy signal is on, so usage stats are off." : "Share anonymous usage stats. No cookies, no ads."}</small></span></label>
+    <p class="legal">${LEGAL_LINKS}</p>`, `<button class="btn ghost flex1" id="phow">Scoring</button><button class="btn flex1" id="psave">Save</button>`);
+  $("#psave").onclick = () => { takeName("pname"); if (navigator.globalPrivacyControl !== true) { profile.noStats = !$("#pstats").checked; saveProfile(); } closeSheet(); toast("Saved", "good"); if (!session) hub(); };
   $("#phow").onclick = () => howSheet();
 }
 
@@ -662,7 +720,7 @@ async function poll() {
     timeOffset = s.serverTime - Date.now();
     handleEvents(s); state = s; render();
   } catch (e) {
-    if (e.status === 404 || e.status === 403) { toast(e.message, "bad"); saveSession(null); navigate("/", true); }
+    if (e.status === 404 || e.status === 403) { if (e.status === 403) step("kicked"); toast(e.message, "bad"); saveSession(null); navigate("/", true); }
   } finally { pollBusy = false; }
 }
 function handleEvents(s) {
@@ -693,11 +751,13 @@ const inviteText = () => `${state.players.find((p) => p.isHost)?.name || "I"} ch
 function shareButtons(textFn, urlFn, id = "sh") {
   return `<div class="sharegrid" id="${id}"><a class="btn wa" data-a="wa" href="#" role="button">${I.chat}WhatsApp</a><button class="btn ghost" data-a="share">${I.share}Share</button><button class="btn ghost" data-a="copy">${I.copy}Copy</button><button class="btn ghost" data-a="qr">${I.qr}QR code</button></div>`;
 }
-function bindShare(id, textFn, urlFn) {
+const SHARE_CH = { wa: "wa", share: "sh", copy: "cp", qr: "qr" };
+function bindShare(id, textFn, urlFn, ctx = id) {
   const root = $("#" + id); if (!root) return;
   root.onclick = async (e) => {
     const b = e.target.closest("[data-a]"); if (!b) return; e.preventDefault(); Sound.click();
-    const text = textFn(), url = urlFn();
+    const ch = SHARE_CH[b.dataset.a]; shared(ch, ctx);
+    const text = textFn(), url = tagLink(urlFn(), ch);
     if (b.dataset.a === "wa") window.open(waLink(`${text} ${url}`), "_blank", "noopener");
     if (b.dataset.a === "share") shareText(text, url);
     if (b.dataset.a === "copy") copyText(`${text} ${url}`, "Invite copied. Paste it in your group.");
@@ -727,7 +787,7 @@ function renderLobby() {
   }
   shell({
     hud: hudGame({ mid: "Lobby" }), narrow: true,
-    stage: `<div id="lobby" style="display:contents">
+    stage: `${(step("lobby", { size: s.players.length }), "")}<div id="lobby" style="display:contents">
       <div class="card tight"><div class="bulbs chase"></div><p class="small muted center fit-hide3">Room code</p><button class="bigcode" id="codebtn" aria-label="Copy invite link">${s.code}</button>
         <p class="center small muted fit-hide1" style="margin:2px 0 10px">Send this to your friends. They join in seconds.</p>${shareButtons()}</div>
       <div class="card lobbyp"><div class="rowf phead"><p class="h3 grow">Players</p><span class="small muted" id="pcount">${s.players.length} of 12</span></div><div class="pgrid" id="pgrid">${cells}</div></div>
@@ -736,16 +796,16 @@ function renderLobby() {
     </div>`,
     dock: `<button class="btn ghost sm" id="reactbtn" aria-label="React">${I.smile}</button>${s.isHost ? `<button class="btn flex1" id="startbtn">${s.players.length > 1 ? `Start with ${s.players.length} players` : "Start solo"}</button>` : `<p class="note">Waiting for ${esc(s.players.find((p) => p.isHost)?.name || "the host")} to start. Invite more friends while you wait.</p>`}`,
   });
-  bindShare("sh", inviteText, roomLink);
+  bindShare("sh", inviteText, roomLink, "lobby");
   prepNote(s);
   if (s.isHost && !s.prep) prepareQuestions();
-  $("#codebtn").onclick = () => copyText(`${inviteText()} ${roomLink()}`, "Invite copied. Paste it in your group.");
+  $("#codebtn").onclick = () => { shared("code", "lobby"); copyText(`${inviteText()} ${tagLink(roomLink(), "code")}`, "Invite copied. Paste it in your group."); };
   $("#reactbtn").onclick = () => openTray((r) => { api("react", { ...session, text: r }).catch(() => {}); });
   if (s.isHost) {
     $("#editbtn").onclick = () => settingsSheet();
     $("#startbtn").onclick = async () => {
       const b = $("#startbtn"); b.disabled = true; b.innerHTML = `<span class="spin"></span>Setting the stage`; Sound.go();
-      try { await api("start", session); refresh(); } catch (e) { if ($("#lerr")) $("#lerr").textContent = e.message; b.disabled = false; b.textContent = "Start game"; }
+      try { await api("start", session); step("start", { size: s.players.length, mode: s.mode, waited: s.prep !== "ready" }); refresh(); } catch (e) { if ($("#lerr")) $("#lerr").textContent = e.message; b.disabled = false; b.textContent = "Start game"; }
     };
   }
 }
@@ -772,7 +832,7 @@ function settingsSheet() {
   $("#snstep").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; n = clamp(n + Number(b.dataset.d), 3, 20); $("#snout").textContent = n; };
   $("#ssstep").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; sec = clamp(sec + Number(b.dataset.d), 15, 120); $("#ssout").textContent = sec; };
   $("#ssave").onclick = async () => {
-    try { await api("settings", { ...session, topic: $("#stopic").value, mode, numQuestions: n, secondsPerQ: sec }); closeSheet(); refresh(); toast("Settings saved", "good"); prepAsked = 0; prepareQuestions(); }
+    try { await api("settings", { ...session, topic: $("#stopic").value, mode, numQuestions: n, secondsPerQ: sec }); step("settings", { what: "room" }); closeSheet(); refresh(); toast("Settings saved", "good"); prepAsked = 0; prepareQuestions(); }
     catch (e) { $("#serr").textContent = e.message; }
   };
 }
@@ -848,7 +908,8 @@ function renderPlaying() {
       const btn = $("#lockbtn"); btn.disabled = true; clearTimeout(typingTrail);
       showLocked(text, boostArmed); Sound.lock(); if (boostArmed) popAt($("#lockedbox"), "2×");
       document.activeElement?.blur();
-      try { await api("answer", { ...session, q: q.index, text, double: boostArmed }); refresh(); }
+      const boosted = boostArmed, ms = Math.max(0, serverNow() - s.round.startedAt - (s.mode === "timed" ? s.countdownMs : 0));
+      try { await api("answer", { ...session, q: q.index, text, double: boosted }); step("answer", { q: q.index, label: q.label, ms, boost: boosted }); refresh(); }
       catch (e) { toast(e.message, "bad"); if (!/already/i.test(e.message)) { $("#lockedbox").classList.add("hidden"); $("#ansbox").classList.remove("hidden"); btn.disabled = false; btn.classList.remove("hidden"); $("#boostbtn")?.classList.remove("hidden"); } }
     };
     bindAnswer(q.index, submit); bindBoost(me.doubleLeft);
@@ -960,6 +1021,7 @@ function renderReveal() {
   roundKey = q.index + 1000;
   $("#overlay").classList.remove("on"); cancelAnimationFrame(timerRAF);
   const mine = r.answers.find((a) => a.playerId === s.me.id);
+  step("reveal", { q: q.index, rank: mine ? r.answers.indexOf(mine) + 1 : 0, pts: mine?.points || 0 });
   const winner = r.answers[0]?.points > 0 ? r.answers[0] : null;
   const last = q.index + 1 >= q.total;
   shell({
@@ -1054,6 +1116,7 @@ function renderRace() {
       document.activeElement?.blur();
       try {
         const r = await api("answer", { ...session, q: q.index, text, double: boostArmed });
+        step("answer", { q: q.index, label: q.label, pts: r.graded?.points, cov: r.graded?.coverage, boost: !!r.graded?.double, myth: !!r.graded?.misFired });
         raceShow = { q: q.index, graded: r.graded, rubric: r.graded.criteria?.map((c) => c.text), until: Date.now() + 60000 };
         await refresh();
       } catch (e) { toast(e.message, "bad"); btn.disabled = false; btn.textContent = "Lock in"; }
@@ -1145,6 +1208,7 @@ function renderFinished() {
   const gained = Math.round((me?.score || 0) / 5) + 25 + (s.players.length > 1 ? [0, 60, 35, 20][me.rank] || 0 : 0) + flaw * 10;
   const xp = applyXp(s.gameId || `${s.code}:${s.games}`, gained, { win: me.rank === 1 && s.players.length > 1, flawless: flaw, streak });
   const awards = computeAwards(s);
+  step("finish", { rank: me?.rank || 0, size: s.players.length, score: me?.score || 0, mode: s.mode });
   const pod = (p, cls, place) => (p ? `<div class="pod ${cls}"><span class="pl">${place}</span><span class="capw">${cls === "p1" ? `<span class="capdrop" style="display:block">${I.capOnly}</span>` : ""}${disc(p, cls === "p1" ? "lg" : "")}</span><span class="nm">${esc(p.name)}</span><span class="sc" data-p="${p.score}">0</span></div>` : `<div class="pod ${cls} empty"><span class="pl">${place}</span></div>`);
   shell({
     hud: hudGame({ mid: esc(s.topic) }), narrow: true,
@@ -1164,7 +1228,7 @@ function renderFinished() {
 }
 async function getChallenge() {
   if (state._challenge) return state._challenge;
-  const r = await api("challenge", session); state._challenge = r.id; return r.id;
+  const r = await api("challenge", session); state._challenge = r.id; step("challenge_make"); return r.id;
 }
 async function challengeFlow() {
   Sound.click();
@@ -1174,14 +1238,14 @@ async function challengeFlow() {
     const url = `${ORIGIN}/c/${id}`;
     const text = `I scored ${me.score} on ${state.topic} in FactClash (#${me.rank} of ${state.players.length}). Same questions. No cap, can you beat me?`;
     openSheet("Challenge anyone", `<p class="muted" style="margin-bottom:12px">Anyone with this link plays the exact same questions and lands on your leaderboard. Great for friends who missed the game.</p>${shareButtons(null, null, "chsh")}<div class="quote small" style="margin-top:12px">${esc(text)} ${esc(url)}</div>`);
-    bindShare("chsh", () => text, () => url);
+    bindShare("chsh", () => text, () => url, "challenge");
   } catch (e) { closeSheet(); toast(e.message, "bad"); }
 }
 function rematchSheet() {
   const s = state;
   openSheet("Rematch", `<p class="muted" style="margin-bottom:14px">Same players, fresh questions. Scores reset. Keep the topic or try a new one.</p><div class="topicrow"><input class="field" id="rtopic" maxlength="60" value="${esc(s.topic)}" aria-label="Topic"><button class="ib dice" id="rdice" aria-label="Surprise me">${I.dice}</button></div><p class="err" id="rerr" style="margin-top:8px"></p>`, `<button class="btn wide" id="rgo">Back to lobby</button>`);
   bindDice($("#rdice"), $("#rtopic"));
-  $("#rgo").onclick = async () => { const b = $("#rgo"); b.disabled = true; try { await api("again", { ...session, topic: $("#rtopic").value }); lastRanks = {}; closeSheet(); refresh(); prepAsked = 0; prepareQuestions(); } catch (e) { if ($("#rerr")) $("#rerr").textContent = e.message; b.disabled = false; } };
+  $("#rgo").onclick = async () => { const b = $("#rgo"); b.disabled = true; try { const topic = $("#rtopic").value; await api("again", { ...session, topic }); step("rematch", { topic: topic.trim() && topic.trim() !== state.topic ? "new" : "same" }); lastRanks = {}; closeSheet(); refresh(); prepAsked = 0; prepareQuestions(); } catch (e) { if ($("#rerr")) $("#rerr").textContent = e.message; b.disabled = false; } };
 }
 function reviewSheet(i = 0) {
   const s = state, r = s.summary[i];
@@ -1200,8 +1264,8 @@ function roomMenu() {
     <p class="label" style="margin-top:16px">Players</p><div class="list">${s.players.map((p) => `<div class="row">${disc(p, "sm")}<span class="nm">${esc(p.name)}${p.isMe ? " (you)" : ""}<small>${[p.isHost ? "Host" : "", p.away ? "Away" : "", `Level ${p.level}`].filter(Boolean).join("  ·  ")}</small></span>${s.isHost && !p.isMe ? `<button class="btn xs ghost" data-kick="${p.id}">Remove</button>` : ""}</div>`).join("")}</div>
     <p class="err" id="merr" style="margin-top:8px"></p>`,
     `${s.status === "finished" && s.summary?.length ? `<button class="btn ghost flex1" id="mreview">Review answers</button>` : ""}${s.isHost && ["playing", "reveal"].includes(s.status) ? `<button class="btn ghost flex1" id="mend">End game</button>` : ""}<button class="btn ghost flex1" id="mleave">Leave room</button>`);
-  bindShare("msh", inviteText, roomLink);
-  $("#mleave").onclick = async () => { try { await api("leave", session); } catch {} saveSession(null); navigate("/"); };
+  bindShare("msh", inviteText, roomLink, "menu");
+  $("#mleave").onclick = async () => { step("leave", { at: state?.status || "" }); try { await api("leave", session); } catch {} saveSession(null); navigate("/"); };
   $("#mend")?.addEventListener("click", async () => { try { await api("end", session); closeSheet(); refresh(); } catch (e) { $("#merr").textContent = e.message; } });
   $("#mreview")?.addEventListener("click", () => reviewSheet(0));
   $$("#sheet [data-kick]").forEach((b) => (b.onclick = async () => { try { await api("kick", { ...session, target: b.dataset.kick }); closeSheet(); refresh(); } catch (e) { $("#merr").textContent = e.message; } }));
@@ -1270,8 +1334,8 @@ async function shareRoomResult() {
     const text = `I scored ${me.score} on ${s.topic} in FactClash (#${me.rank} of ${s.players.length}). Same questions, can you beat me?`;
     const img = URL.createObjectURL(blob);
     openSheet("Share your result", `<img src="${img}" alt="Your result card" style="width:min(56vw,240px);display:block;margin:0 auto 14px;border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,.5)">${shareButtons(null, null, "rsh")}`, `<button class="btn wide" id="imgshare">${I.share}Share image</button>`);
-    bindShare("rsh", () => text, () => url);
-    $("#imgshare").onclick = () => shareImage(blob, text, url);
+    bindShare("rsh", () => text, () => url, "result");
+    $("#imgshare").onclick = () => { shared("image", "result"); shareImage(blob, text, tagLink(url, "img")); };
   } catch (e) { closeSheet(); toast(e.message || "Could not make the card", "bad"); }
 }
 
@@ -1281,7 +1345,7 @@ async function shareRoomResult() {
 let solo = null; // { kind, ref, key, token, st }
 const soloKey = (kind, ref) => `kc:solo:${kind}:${ref}`;
 async function soloIntro(kind, ref) {
-  stopCurrent(); state = null;
+  stopCurrent(); state = null; step(kind === "daily" ? "daily_open" : "challenge_open");
   Sound.music("lobby");
   shell({ hud: hudHome(), narrow: true, stage: `<div class="genstage"><span class="spin"></span><p class="muted">Loading</p></div>` });
   let d;
@@ -1307,7 +1371,8 @@ async function soloIntro(kind, ref) {
   };
 }
 async function soloFetch(begin) {
-  const d = await api("solostate", { kind: solo.kind, ref: solo.ref, device: profile.device, token: solo.token, name: profile.name, level: myLevel(), begin });
+  const d = await api("solostate", { kind: solo.kind, ref: solo.ref, device: profile.device, token: solo.token, name: profile.name, level: myLevel(), begin, src: LANDING.src });
+  if (d.token && solo.kind === "daily") step("daily_start");
   if (d.token) { solo.token = d.token; }
   solo.st = d; timeOffset = d.serverTime - Date.now();
   LS.set(solo.key, { token: solo.token, cur: d.me.cur, total: d.me.total, finished: d.me.finished, rank: d.board?.me?.rank || null });
@@ -1359,6 +1424,7 @@ function soloQuestion() {
 }
 function soloResult(r, q) {
   const g = r.graded, n = solo.st.total, done = r.finished;
+  if (solo.kind === "daily") step("daily_answer", { q: q.index, pts: g.points, cov: g.coverage });
   Sound.music("lobby");
   shell({
     hud: hudGame({ pill: `Q ${q.index + 1}/${n}`, mid: `${r.total} pts`, menu: false }), rail: meter(q.index + 1, n, q.index + 1),
@@ -1379,6 +1445,7 @@ function soloEnd() {
   const flaw = me.answers.filter((a) => a?.flawless).length, streak = me.answers.reduce((k, a) => Math.max(k, a?.streakAfter || 0), 0);
   const xp = applyXp(`${d.kind}:${d.ref}`, Math.round(me.total / 5) + 25 + flaw * 10, { flawless: flaw, streak });
   if (isDaily && xp) { profile.dailyStreak = profile.lastDaily === yesterday() ? profile.dailyStreak + 1 : profile.lastDaily === d.ref ? profile.dailyStreak : 1; profile.lastDaily = d.ref; saveProfile(); }
+  if (isDaily) step("daily_finish", { score: me.total, rank: rank || 0, streak: profile.dailyStreak });
   const sq = grid.map((v) => (v === 2 ? "🟩" : v === 1 ? "🟨" : "⬛")).join("");
   const url = isDaily ? `${ORIGIN}/daily` : `${ORIGIN}/c/${d.ref}`;
   const text = isDaily ? `FactClash Daily #${d.number}: ${d.topic}\n${sq}\n${me.total} pts${rank ? `, #${rank} of ${count}` : ""}${profile.dailyStreak > 1 ? `, ${profile.dailyStreak} day streak` : ""}\nNo cap, can you beat me?` : `I scored ${me.total} on ${d.topic} in FactClash${rank ? ` (#${rank} of ${count})` : ""}. Same questions, can you beat me?`;
@@ -1394,12 +1461,12 @@ function soloEnd() {
   $("#lights").classList.add("party");
   countUp($("#bigscore"), me.total, 1100); setTimeout(() => { Sound.win(); confetti(60); }, 300);
   if (xp) animateXp(xp);
-  $("#sharebtn").onclick = () => { Sound.click(); navigator.share ? shareText(text, url) : window.open(waLink(`${text}\n${url}`), "_blank", "noopener"); };
+  $("#sharebtn").onclick = () => { Sound.click(); const ch = navigator.share ? "sh" : "wa"; shared(ch, solo?.kind || "solo"); navigator.share ? shareText(text, tagLink(url, ch)) : window.open(waLink(`${text}\n${tagLink(url, ch)}`), "_blank", "noopener"); };
   $("#cardbtn").onclick = async () => {
-    Sound.click(); openSheet("Share card", `<div class="genstage" style="min-height:140px"><span class="spin"></span></div>`);
+    Sound.click(); step("card", { ctx: solo?.kind || "solo" }); openSheet("Share card", `<div class="genstage" style="min-height:140px"><span class="spin"></span></div>`);
     const blob = await drawCard({ kicker: isDaily ? `FactClash Daily #${d.number}` : "I took the challenge", title: d.topic, big: me.total, bigSub: rank ? `#${rank} of ${plural(count, "player")}` : "points", grid: grid.map((v) => Math.max(0, v)), cta: "Can you beat me?", url });
     openSheet("Share card", `<img src="${URL.createObjectURL(blob)}" alt="Your score card" style="width:min(56vw,240px);display:block;margin:0 auto;border-radius:16px">`, `<button class="btn wide" id="imgshare">${I.share}Share image</button>`);
-    $("#imgshare").onclick = () => shareImage(blob, text.replace(/\n/g, " "), url);
+    $("#imgshare").onclick = () => { shared("image", solo?.kind || "solo"); shareImage(blob, text.replace(/\n/g, " "), tagLink(url, "img")); };
   };
   $("#revbtn").onclick = () => soloReview(0);
 }
@@ -1416,5 +1483,7 @@ function soloReview(i) {
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   try { const u = new URLSearchParams(location.search); if (u.get("s")) { const s = JSON.parse(atob(u.get("s"))); saveSession(s); if (u.get("n")) { profile.name = u.get("n"); profile.seenIntro = true; saveProfile(); } history.replaceState(null, "", `/r/${s.code}`); } } catch {}
 }
+// The first journey step (also counted as a visit, with its source), then the right screen.
+step("land", { kind: LANDING.kind, src: LANDING.src, newbie: !profile.seenIntro });
 boot();
 })();

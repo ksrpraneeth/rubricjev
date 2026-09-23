@@ -29,9 +29,22 @@ The writer drafts about half again as many questions as the game needs. A strong
 - Requests time out instead of hanging, and safe-to-repeat actions (answer, ready, next, state) retry on their own. Start, next, rematch and join are idempotent, so a retry after a lost reply never skips a round, resets a game or creates a ghost player.
 - Coming back from another app or a dropped connection refreshes the room at once.
 
+## Analytics, journeys and the question bank (first party, no cookies)
+- **Counts** (`lib/stats.js`): daily totals in Redis, such as visits by source (`?utm_source=`, `?utm_campaign=`, `?ref=`, referrer), invite links opened by people and by chat-app previews, joins by channel, shares by channel and screen, games, rematches, challenges, Daily starts with return visits and streaks, and question builds. Unique players are estimated with HyperLogLog over salted hashes.
+- **Journeys** (`lib/journey.js`): each visit's steps (landed, hosted, joined, answered, finished, shared, came back after N days), linked by a one-way hash of the app's random device id. No names or answers. Kept 60 days.
+- **Question bank** (`lib/bank.js`): every question written, with totals per question (asked, average points, zero rate, myths, skips, time) and up to 50 anonymous, PII-scrubbed answer samples (90 days).
+- **Cost**: the page sends journey steps in batches (every 45 s at most, at 40 steps, at the end of a game and when the page is hidden). Visits and shares are counted from those batches, so there is no separate analytics request, and every server write is one pipelined Redis call.
+- **Privacy**: nothing new is stored on the device and no cookies are used. Test traffic, players who turn off "Help improve FactClash" in their profile, and browsers sending Global Privacy Control are never counted, logged or sampled. Rate limits keep only a one-way hash of IP addresses, for an hour. Fonts and scripts are self-hosted, so the site makes no third-party requests.
+- **Spend guard**: at most `GEN_DAILY_CAP` new question sets a day (default 2000, about $68); after that, hosts are told new games are taking a short break, while the Daily Clash keeps working.
+- **Reading it** (local only, nothing is served publicly): `node --env-file=.env --env-file=.env.local tools/stats.mjs [days]`, `... tools/stats.mjs journeys [YYYY-MM-DD] [out.ndjson]`, `... tools/stats.mjs bank [topic]`, `... tools/stats.mjs bank-export bank.ndjson`.
+
+## Legal pages
+`/privacy`, `/terms` and `/cookies` (static pages in `public/`), linked from the intro, the hub, the host and join screens, and the profile sheet.
+
 ## Tools
 - `tools/calibrate.mjs`: generates questions, simulates answer styles and prints a grading table per style.
 - `tools/regrade.mjs`: replays a saved calibration set against the current grader, to check a grading change before shipping it.
+- `tools/stats.mjs`: the local analytics, journey and question bank reports described above.
 
 ## Run locally
 ```
