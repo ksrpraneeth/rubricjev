@@ -517,7 +517,7 @@ function hostScreen(prefill = "") {
     $("#create").disabled = true; $("#create").innerHTML = `<span class="spin"></span>Opening room`;
     try {
       LS.set("kc:lastmode", mode); LS.set("kc:lastn", n); LS.set("kc:lastsec", sec);
-      const r = await api("create", { name, topic, mode, numQuestions: n, secondsPerQ: sec, level: myLevel() });
+      const r = await api("create", { name, topic, mode, numQuestions: n, secondsPerQ: sec, level: myLevel(), device: profile.device });
       saveSession(r); Sound.go(); navigate(`/r/${r.code}`);
     } catch (e) { if ($("#herr")) $("#herr").textContent = e.message; if ($("#create")) { $("#create").disabled = false; $("#create").textContent = "Create room"; } }
   };
@@ -539,7 +539,7 @@ function joinScreen(code = "", invite = null) {
     if (!name) { $("#jerr").textContent = "Enter your name first."; return $("#nm").focus(); }
     if (!/^[A-Z0-9]{4}$/.test(c)) { $("#jerr").textContent = "Room codes are 4 letters."; return $("#code").focus(); }
     $("#join").disabled = true; $("#join").innerHTML = `<span class="spin"></span>Joining`;
-    try { const r = await api("join", { name, code: c, level: myLevel() }); saveSession(r); Sound.go(); navigate(`/r/${r.code}`); }
+    try { const r = await api("join", { name, code: c, level: myLevel(), device: profile.device }); saveSession(r); Sound.go(); navigate(`/r/${r.code}`); }
     catch (e) { if ($("#jerr")) $("#jerr").textContent = e.message; if ($("#join")) { $("#join").disabled = false; $("#join").textContent = "Join room"; } }
   };
   $("#join").onclick = go;
