@@ -853,7 +853,7 @@ function renderPlaying() {
     };
     bindAnswer(q.index, submit); bindBoost(me.doubleLeft);
     $("#lockbtn").onclick = submit;
-    $("#forcebtn")?.addEventListener("click", () => api("next", session).then(refresh).catch((e) => toast(e.message, "bad")));
+    $("#forcebtn")?.addEventListener("click", () => api("next", { ...session, q: q.index, force: true }).then(refresh).catch((e) => toast(e.message, "bad")));
     if (s.mode !== "timed") setTimeout(() => $("#ans")?.focus(), 250);
   }
   if (s.myAnswer && !$("#lockedbox").classList.contains("shown")) showLocked(s.myAnswer.text, s.myAnswer.double);
